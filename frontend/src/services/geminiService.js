@@ -112,16 +112,13 @@ INSTRUCCIONES CRÍTICAS DE PESO (RANGO MENOR):
    - "peso_estimado_promedio" debe ser igual a "peso_promedio_minimo_kg".
    - "peso_total_estimado" debe ser igual a ("count" * "peso_estimado_promedio").
 
-5. En "observaciones", describe brevemente las reses detectadas y el cálculo de peso sin mencionar nunca modelos externos.
-
 Responde ÚNICAMENTE con un objeto JSON válido con esta estructura exacta:
 {
   "count": 7,
   "peso_promedio_minimo_kg": 350,
   "peso_promedio_maximo_kg": 410,
   "peso_estimado_promedio": 350,
-  "peso_total_estimado": 2450,
-  "observaciones": "Se detectaron 7 bovinos en el recorrido con un peso mínimo estimado de 350 kg por animal."
+  "peso_total_estimado": 2450
 }`;
 
 async function consultarModeloConPartes(partesMedia, signal) {

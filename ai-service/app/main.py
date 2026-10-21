@@ -24,8 +24,7 @@ Responde ÚNICAMENTE con JSON válido:
   "peso_promedio_minimo_kg": 350,
   "peso_promedio_maximo_kg": 410,
   "peso_estimado_promedio": 350,
-  "peso_total_estimado": 2450,
-  "observaciones": "Descripción breve sin mencionar modelos externos."
+  "peso_total_estimado": 2450
 }"""
 
 app = FastAPI(title="BioCenso AI Service")

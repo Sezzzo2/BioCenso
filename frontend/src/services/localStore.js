@@ -100,8 +100,6 @@ const INITIAL_DB = {
       peso_total_estimado: 4760,
       peso_total_minimo_kg: 4760,
       peso_total_maximo_kg: 5320,
-      observaciones:
-        "Se identificaron 14 bovinos en pastoreo con un peso estimado de 340 kg por animal (4.760 kg en total).",
       conteo_manual: 15,
       modelo_ia: "YOLOv26s",
     },

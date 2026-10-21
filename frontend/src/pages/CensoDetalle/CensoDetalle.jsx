@@ -126,10 +126,6 @@ export default function CensoDetalle() {
                   </span>
                 )}
               </strong>
-              <p>
-                {censo.observaciones ||
-                  "Este es un conteo agregado del análisis; el censo no vincula bovinos individuales."}
-              </p>
             </div>
             <Link to={`/fincas/${id}`} className="bc-btn bc-btn-outline">Ver finca y bovinos registrados</Link>
           </section>

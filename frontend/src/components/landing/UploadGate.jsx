@@ -120,9 +120,6 @@ export default function UploadGate() {
                     </div>
                   </div>
                 </div>
-                {resultado.observaciones && (
-                  <p className="mt-2 mb-0" style={{ fontSize: ".9rem" }}>{resultado.observaciones}</p>
-                )}
               </div>
             )}
           </div>

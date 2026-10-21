@@ -160,13 +160,6 @@ export default function CensoNuevo() {
           </div>
         </div>
 
-        {det.observaciones && (
-          <div className="bc-card mb-4">
-            <span className="bc-module-eyebrow">Resumen del análisis</span>
-            <p className="mb-0 mt-1">{det.observaciones}</p>
-          </div>
-        )}
-
         <div className="bc-form-actions mb-4">
           {idDeCenso(resultado) && (
             <Link to={`/fincas/${idFinca}/censos/${idDeCenso(resultado)}`} className="bc-btn bc-btn-primary">

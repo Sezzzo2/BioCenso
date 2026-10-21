@@ -1,6 +1,8 @@
 import api from "./api.js";
 import { guardarDB, leerDB, siguienteId } from "./localStore.js";
 
+const USAR_BACKEND = import.meta.env.VITE_USE_BACKEND === "true";
+
 const CAMPO_ID_ANIMAL = "id_animal";
 const CAMPO_ID_VACUNA = "id_vacunas";
 const CAMPO_FECHA = "fecha_vacunacion";
@@ -17,79 +19,69 @@ const normalizarAplicacion = (a) => ({
 });
 
 export const listarVacunas = async () => {
-  try {
+  if (USAR_BACKEND) {
     const r = await api.get("/vacunas");
     return normalizarLista(r.data);
-  } catch (err) {
-    if (err.response) throw err;
-    return leerDB().vacunas;
   }
+  return leerDB().vacunas;
 };
 
 export const crearVacuna = async (nombre) => {
-  try {
+  if (USAR_BACKEND) {
     const r = await api.post("/vacunas", { nombre: nombre.trim() });
     return r.data;
-  } catch (err) {
-    if (err.response) throw err;
-    const db = leerDB();
-    const nueva = {
-      id_vacunas: siguienteId(db.vacunas, "id_vacunas"),
-      nombre: nombre.trim(),
-    };
-    db.vacunas.push(nueva);
-    guardarDB(db);
-    return nueva;
   }
+  const db = leerDB();
+  const nueva = {
+    id_vacunas: siguienteId(db.vacunas, "id_vacunas"),
+    nombre: nombre.trim(),
+  };
+  db.vacunas.push(nueva);
+  guardarDB(db);
+  return nueva;
 };
 
 export const aplicarVacuna = async ({ idAnimal, idVacuna: idV, fecha }) => {
-  try {
+  if (USAR_BACKEND) {
     const r = await api.post("/vacunas/aplicar", {
       [CAMPO_ID_ANIMAL]: Number(idAnimal),
       [CAMPO_ID_VACUNA]: Number(idV),
       [CAMPO_FECHA]: fecha,
     });
     return r.data;
-  } catch (err) {
-    if (err.response) throw err;
-    const db = leerDB();
-    const vac = db.vacunas.find((v) => String(idVacuna(v)) === String(idV));
-    const nueva = {
-      id_animal_vacunas: siguienteId(db.aplicaciones, "id_animal_vacunas"),
-      id_animal: Number(idAnimal),
-      id_vacunas: Number(idV),
-      nombre: vac?.nombre || "Vacuna",
-      fecha_vacunacion: fecha,
-    };
-    db.aplicaciones.push(nueva);
-    guardarDB(db);
-    return nueva;
   }
+  const db = leerDB();
+  const vac = db.vacunas.find((v) => String(idVacuna(v)) === String(idV));
+  const nueva = {
+    id_animal_vacunas: siguienteId(db.aplicaciones, "id_animal_vacunas"),
+    id_animal: Number(idAnimal),
+    id_vacunas: Number(idV),
+    nombre: vac?.nombre || "Vacuna",
+    fecha_vacunacion: fecha,
+  };
+  db.aplicaciones.push(nueva);
+  guardarDB(db);
+  return nueva;
 };
 
 export const listarVacunasDeAnimal = async (idAnimal) => {
-  try {
+  if (USAR_BACKEND) {
     const r = await api.get(`/vacunas/animal/${idAnimal}`);
     return normalizarLista(r.data).map(normalizarAplicacion);
-  } catch (err) {
-    if (err.response) throw err;
-    return leerDB()
-      .aplicaciones.filter((a) => String(a.id_animal) === String(idAnimal))
-      .map(normalizarAplicacion);
   }
+  return leerDB()
+    .aplicaciones.filter((a) => String(a.id_animal) === String(idAnimal))
+    .map(normalizarAplicacion);
 };
 
 export const eliminarAplicacion = async (id) => {
-  try {
+  if (USAR_BACKEND) {
     return await api.delete(`/vacunas/aplicacion/${id}`);
-  } catch (err) {
-    if (err.response) throw err;
-    const db = leerDB();
-    db.aplicaciones = db.aplicaciones.filter(
-      (a) => String(a.id_animal_vacunas) !== String(id)
-    );
-    guardarDB(db);
-    return { ok: true };
   }
+  const db = leerDB();
+  db.aplicaciones = db.aplicaciones.filter(
+    (a) => String(a.id_animal_vacunas) !== String(id)
+  );
+  guardarDB(db);
+  return { ok: true };
 };

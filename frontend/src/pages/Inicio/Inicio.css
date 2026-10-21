@@ -1,0 +1,274 @@
+.bc-home {
+  display: flex;
+  flex-direction: column;
+  gap: 40px;
+}
+
+.bc-eyebrow {
+  display: block;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--bc-moss);
+  margin-bottom: 4px;
+}
+
+/* ---------- Hero ---------- */
+/* Si existe public/img/hero-ganado.jpg se usa como fondo; si no, queda el degradado verde. */
+.bc-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+  gap: 40px;
+  align-items: center;
+  padding: clamp(28px, 4vw, 48px);
+  border-radius: 24px;
+  color: #fff;
+  background:
+    linear-gradient(105deg, rgba(20, 40, 28, 0.97) 0%, rgba(20, 40, 28, 0.88) 50%, rgba(20, 40, 28, 0.55) 100%),
+    url("/img/hero-ganado.jpg") center / cover,
+    radial-gradient(circle at 85% 20%, #3f6b3c 0%, transparent 55%),
+    var(--bc-forest);
+  overflow: hidden;
+}
+.bc-hero__tag {
+  display: inline-block;
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: rgba(166, 220, 94, 0.14);
+  color: var(--bc-lime);
+  font-size: 0.82rem;
+  font-weight: 600;
+  margin-bottom: 18px;
+}
+.bc-hero h1 {
+  font-size: clamp(2rem, 4.2vw, 3.1rem);
+  font-weight: 700;
+  line-height: 1.08;
+  letter-spacing: -0.025em;
+  margin: 0 0 16px;
+}
+.bc-hero p {
+  font-size: 1.08rem;
+  line-height: 1.55;
+  color: #d3ddcf;
+  max-width: 46ch;
+  margin: 0 0 28px;
+}
+.bc-hero__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.bc-preview {
+  position: relative;
+  margin: 0;
+  padding: 10px;
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+}
+.bc-preview svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 14px;
+}
+.bc-preview__count {
+  position: absolute;
+  left: 22px;
+  right: 22px;
+  bottom: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 18px;
+  border-radius: 999px;
+  background: rgba(17, 32, 23, 0.88);
+  backdrop-filter: blur(6px);
+}
+.bc-preview__count span {
+  font-size: 0.9rem;
+  color: #d3ddcf;
+}
+.bc-preview__count strong {
+  font-size: 1.9rem;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Último censo ---------- */
+.bc-last__head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+.bc-last__date {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--bc-muted);
+  margin: 0;
+}
+.bc-last__actions {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+.bc-last__stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin: 0;
+}
+.bc-last__stats > div {
+  padding: 18px 20px;
+  border-radius: var(--bc-radius-sm);
+  background: var(--bc-surface-2);
+}
+.bc-last__stats dt {
+  font-size: 0.88rem;
+  font-weight: 500;
+  color: var(--bc-muted);
+}
+.bc-last__stats dd {
+  margin: 4px 0 0;
+  font-size: 2.6rem;
+  font-weight: 700;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+  color: var(--bc-ink);
+}
+.bc-last__diff dd {
+  color: inherit;
+}
+.bc-last__diff span {
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+.bc-last__diff.bc-diff--ok {
+  background: var(--bc-ok-bg);
+}
+.bc-last__diff.bc-diff--warn {
+  background: var(--bc-warn-bg);
+}
+.bc-last--empty {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.bc-last--empty .bc-section-sub {
+  margin: 0;
+}
+
+/* ---------- Cómo funciona ---------- */
+.bc-steps {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  counter-reset: none;
+}
+.bc-step {
+  position: relative;
+  padding: 22px;
+  border-radius: var(--bc-radius);
+  background: var(--bc-surface);
+  border: 1px solid var(--bc-line);
+}
+.bc-step:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  top: 42px;
+  right: -17px;
+  width: 18px;
+  height: 2px;
+  background: var(--bc-moss);
+}
+.bc-step__num {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--bc-forest);
+  color: var(--bc-lime);
+  font-weight: 700;
+  margin-bottom: 14px;
+}
+.bc-step h3 {
+  font-size: 1.05rem;
+  font-weight: 700;
+  margin: 0 0 6px;
+}
+.bc-step p {
+  margin: 0;
+  color: var(--bc-muted);
+  font-size: 0.93rem;
+  line-height: 1.5;
+}
+
+/* ---------- Consejos ---------- */
+.bc-tips__grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+}
+.bc-tip {
+  display: flex;
+  gap: 16px;
+  padding: 20px 22px;
+  border-radius: var(--bc-radius);
+  background: var(--bc-forest-2);
+  color: #fff;
+}
+.bc-tip__icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: rgba(166, 220, 94, 0.15);
+  color: var(--bc-lime);
+}
+.bc-tip h3 {
+  font-size: 1.05rem;
+  font-weight: 700;
+  margin: 2px 0 4px;
+}
+.bc-tip p {
+  margin: 0;
+  color: #c9d5c4;
+  font-size: 0.93rem;
+  line-height: 1.5;
+}
+
+@media (max-width: 1100px) {
+  .bc-steps {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .bc-step::after {
+    display: none;
+  }
+}
+@media (max-width: 760px) {
+  .bc-hero {
+    grid-template-columns: 1fr;
+  }
+  .bc-last__stats,
+  .bc-tips__grid,
+  .bc-steps {
+    grid-template-columns: 1fr;
+  }
+  .bc-last__stats dd {
+    font-size: 2.1rem;
+  }
+}

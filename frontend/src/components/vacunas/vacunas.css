@@ -1,0 +1,392 @@
+.bc-livestock-page .bc-section-head {
+  margin: 2rem 0 1rem;
+}
+
+.bc-section-head.bc-vaccine-module-heading {
+  align-items: flex-start;
+  margin-bottom: 1.25rem;
+}
+
+.bc-livestock-page .bc-section-head h2 {
+  margin: 0;
+  color: var(--bc-livestock-text);
+  font-size: clamp(1.4rem, 2.5vw, 1.75rem);
+  font-weight: 750;
+  letter-spacing: -.03em;
+}
+
+.bc-vaccine-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  margin: 1rem 0;
+}
+
+.bc-vaccine-stat {
+  display: flex;
+  align-items: center;
+  gap: .85rem;
+  min-height: 86px;
+  padding: 1rem 1.1rem;
+  border: 1px solid var(--bc-livestock-border);
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 4px 16px rgba(16, 24, 40, .035);
+}
+
+.bc-vaccine-stat__icon {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 12px;
+  background: var(--bc-livestock-green-soft);
+  color: var(--bc-livestock-green);
+}
+
+.bc-vaccine-stat div {
+  display: grid;
+  gap: .2rem;
+}
+
+.bc-vaccine-stat div span {
+  color: var(--bc-livestock-muted);
+  font-size: .82rem;
+}
+
+.bc-vaccine-stat strong {
+  color: var(--bc-livestock-text);
+  font-size: 1.35rem;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+.bc-vaccine-form {
+  margin: 1rem 0 1.5rem;
+  padding: 1.35rem;
+}
+
+.bc-vaccine-card-heading {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+
+.bc-livestock-page .bc-vaccine-card-heading h3,
+.bc-livestock-page .bc-vaccine-history__heading h3 {
+  margin: 0;
+  color: var(--bc-livestock-text);
+  font-size: 1.08rem;
+  font-weight: 700;
+}
+
+.bc-vaccine-card-heading p {
+  margin: .35rem 0 0;
+  color: var(--bc-livestock-muted);
+  font-size: .87rem;
+}
+
+.bc-livestock-page .bc-inline-form {
+  display: flex;
+  align-items: flex-end;
+  gap: .85rem;
+}
+
+.bc-livestock-page .bc-inline-form .bc-field {
+  flex: 1 1 200px;
+  margin-bottom: 0;
+}
+
+.bc-livestock-page .bc-inline-form .bc-field label {
+  display: block;
+  margin-bottom: .35rem;
+  color: #475467;
+  font-size: .83rem;
+  font-weight: 650;
+}
+
+.bc-livestock-page .bc-inline-form .bc-input {
+  min-height: 44px;
+  border: 1px solid #d5ddd6;
+  border-radius: 9px;
+  background: #fff;
+  color: var(--bc-livestock-text);
+  font: inherit;
+  font-size: .9rem;
+}
+
+.bc-livestock-page .bc-inline-form .bc-input:focus {
+  border-color: var(--bc-livestock-green-mid);
+  box-shadow: 0 0 0 3px rgba(63, 128, 84, .12);
+}
+
+.bc-livestock-page .bc-inline-form .bc-input[aria-invalid="true"] {
+  border-color: #d92d20;
+}
+
+.bc-vaccine-field-error {
+  margin: .35rem 0 0;
+  color: #b42318;
+  font-size: .8rem;
+}
+
+.bc-livestock-page .bc-inline-form .bc-btn-primary {
+  min-height: 44px;
+  padding: .55rem 1rem;
+  border: 1px solid var(--bc-livestock-green);
+  border-radius: 9px;
+  background: var(--bc-livestock-green);
+  color: #fff;
+}
+
+.bc-livestock-page .bc-inline-form .bc-btn-primary:hover {
+  border-color: #19482d;
+  background: #19482d;
+  color: #fff;
+}
+
+.bc-vaccine-catalog {
+  margin-top: 1rem;
+}
+
+.bc-livestock-page .bc-link-btn {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--bc-livestock-green);
+  font: inherit;
+  font-size: .86rem;
+  font-weight: 650;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.bc-livestock-page .bc-link-btn:hover {
+  color: #19482d;
+}
+
+.bc-vaccine-catalog .bc-inline-form {
+  margin-top: .8rem;
+}
+
+.bc-vaccine-catalog .bc-sub {
+  color: var(--bc-livestock-muted) !important;
+  font-size: .81rem !important;
+}
+
+.bc-livestock-page .bc-alert-ok {
+  border: 1px solid #b7dec0;
+  border-radius: 10px;
+  background: #e8f3e9;
+  color: #245c3a;
+}
+
+.bc-vaccine-history {
+  margin-top: 1.6rem;
+}
+
+.bc-vaccine-history__heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: .85rem;
+}
+
+.bc-vaccine-history__heading .bc-module-eyebrow {
+  margin-bottom: .3rem;
+}
+
+.bc-vaccine-search {
+  display: flex;
+  align-items: center;
+  gap: .55rem;
+  width: min(100%, 300px);
+  min-height: 42px;
+  padding: 0 .8rem;
+  border: 1px solid #d5ddd6;
+  border-radius: 9px;
+  background: #fff;
+  color: var(--bc-livestock-muted);
+}
+
+.bc-vaccine-search:focus-within {
+  border-color: var(--bc-livestock-green-mid);
+  box-shadow: 0 0 0 3px rgba(63, 128, 84, .12);
+}
+
+.bc-vaccine-search input {
+  width: 100%;
+  min-width: 0;
+  padding: .55rem 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--bc-livestock-text);
+  font: inherit;
+  font-size: .86rem;
+}
+
+.bc-vaccine-search input::placeholder {
+  color: #98a2b3;
+}
+
+.bc-vaccine-table-card {
+  overflow: hidden;
+  padding: 0;
+}
+
+.bc-livestock-page .bc-vaccine-table {
+  min-width: 540px;
+  margin: 0;
+}
+
+.bc-livestock-page .bc-vaccine-table th {
+  padding: .8rem 1rem;
+  background: #f9faf9;
+  color: #667085;
+  font-size: .72rem;
+  font-weight: 700;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.bc-livestock-page .bc-vaccine-table td {
+  padding: .85rem 1rem;
+  border-bottom: 1px solid #edf0ed;
+  color: var(--bc-livestock-text);
+  vertical-align: middle;
+}
+
+.bc-livestock-page .bc-vaccine-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.bc-livestock-page .bc-vaccine-table tbody tr:hover {
+  background: #fafcf9;
+}
+
+.bc-vaccine-applied {
+  display: inline-flex;
+  align-items: center;
+  gap: .3rem;
+  min-height: 27px;
+  padding: .2rem .55rem;
+  border: 1px solid #c8e2cd;
+  border-radius: 999px;
+  background: #e8f3e9;
+  color: #245c3a;
+  font-size: .78rem;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.bc-vaccine-action-cell {
+  text-align: right !important;
+}
+
+.bc-livestock-page .bc-vaccine-table .bc-btn-danger {
+  min-height: 34px;
+  padding: .3rem .65rem;
+  border: 1px solid #f0c8c5;
+  border-radius: 8px;
+  background: #fff;
+  color: #b42318;
+  font-size: .8rem;
+}
+
+.bc-livestock-page .bc-vaccine-table .bc-btn-danger:hover {
+  border-color: #d92d20;
+  background: #fff1f0;
+  color: #912018;
+}
+
+.bc-vaccine-empty {
+  padding: 2rem 1rem;
+  text-align: center;
+}
+
+.bc-vaccine-empty__icon {
+  display: inline-grid;
+  width: 48px;
+  height: 48px;
+  place-items: center;
+  border-radius: 14px;
+  background: var(--bc-livestock-green-soft);
+  color: var(--bc-livestock-green);
+}
+
+.bc-livestock-page .bc-vaccine-empty h3 {
+  margin: .75rem 0 .35rem;
+  color: var(--bc-livestock-text);
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.bc-vaccine-empty p {
+  margin: 0;
+  color: var(--bc-livestock-muted);
+  font-size: .88rem;
+}
+
+.bc-livestock-page .bc-module-feedback {
+  color: var(--bc-livestock-muted);
+}
+
+@media (max-width: 650px) {
+  .bc-vaccine-summary {
+    gap: .65rem;
+  }
+
+  .bc-vaccine-stat {
+    gap: .55rem;
+    min-height: 76px;
+    padding: .75rem;
+  }
+
+  .bc-vaccine-stat__icon {
+    width: 36px;
+    height: 36px;
+  }
+
+  .bc-vaccine-stat div span {
+    font-size: .73rem;
+  }
+
+  .bc-vaccine-history__heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .bc-vaccine-search {
+    width: 100%;
+  }
+
+  .bc-livestock-page .bc-inline-form {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .bc-livestock-page .bc-inline-form .bc-field,
+  .bc-livestock-page .bc-inline-form .bc-btn {
+    width: 100%;
+  }
+
+  .bc-vaccine-catalog .bc-inline-form {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+
+  .bc-vaccine-catalog .bc-inline-form .bc-field {
+    flex-basis: 100%;
+  }
+}
+
+@media (max-width: 430px) {
+  .bc-vaccine-summary {
+    grid-template-columns: 1fr;
+  }
+}

@@ -40,7 +40,7 @@ export default function UploadGate() {
       });
       setResultado(res);
     } catch (err) {
-      setError(err?.message || "No se pudo analizar el archivo con Gemini 3.8 Flash.");
+      setError(err?.message || "No se pudo analizar el archivo en este momento.");
     } finally {
       setAnalizando(false);
     }
@@ -52,16 +52,15 @@ export default function UploadGate() {
         <div className="bc-gate" style={{ maxWidth: 720, margin: "0 auto" }}>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"
                strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-            <polyline points="17 8 12 3 7 8" />
-            <line x1="12" y1="3" x2="12" y2="15" />
+            <rect x="4" y="11" width="16" height="10" rx="2" />
+            <path d="M8 11V7a4 4 0 0 1 8 0v4" />
           </svg>
           <h2 className="bc-title" style={{ fontSize: "1.8rem" }}>
-            Prueba rápida con Gemini 3.8 Flash
+            Sube tu video de dron
           </h2>
           <p>
-            Sube un video o imagen aérea de dron para contar cuántas reses hay y estimar su peso
-            (adaptado automáticamente al valor mínimo del rango), o inicia sesión para guardar el historial en tu finca.
+            Analiza un video o imagen aérea para detectar cuántas reses hay y estimar su peso total,
+            o inicia sesión para registrar y conservar los censos de tu finca.
           </p>
 
           <div style={{ width: "100%", maxWidth: 480, margin: "1rem auto", textAlign: "left" }}>
@@ -90,31 +89,31 @@ export default function UploadGate() {
                   onClick={analizar}
                 >
                   {analizando
-                    ? `Analizando con Gemini 3.8 Flash... ${progreso}%`
-                    : "Analizar video/imagen ahora"}
+                    ? `Analizando video... ${progreso}%`
+                    : "Procesar censo"}
                 </button>
               </div>
             )}
 
             {resultado && (
               <div className="bc-card mt-3" style={{ textAlign: "left" }}>
-                <span className="bc-module-eyebrow">Resultado Gemini 3.8 Flash (Rango menor)</span>
+                <span className="bc-module-eyebrow">Resultado del censo</span>
                 <div className="row g-2 mt-1">
                   <div className="col-4">
                     <div className="bc-stat">
-                      <div className="bc-stat-label">Reses (mín.)</div>
+                      <div className="bc-stat-label">Reses</div>
                       <div className="bc-stat-value bc-stat-green">{resultado.count}</div>
                     </div>
                   </div>
                   <div className="col-4">
                     <div className="bc-stat">
-                      <div className="bc-stat-label">Peso/res (mín.)</div>
+                      <div className="bc-stat-label">Peso prom.</div>
                       <div className="bc-stat-value">{resultado.peso_estimado_promedio} <small>kg</small></div>
                     </div>
                   </div>
                   <div className="col-4">
                     <div className="bc-stat">
-                      <div className="bc-stat-label">Peso total (mín.)</div>
+                      <div className="bc-stat-label">Peso total</div>
                       <div className="bc-stat-value bc-stat-green">
                         {resultado.peso_total_estimado?.toLocaleString("es-CO")} <small>kg</small>
                       </div>

@@ -39,7 +39,7 @@ export default function CensosDeFinca({ idFinca }) {
         <div>
           <span className="bc-module-eyebrow">Historial de la propiedad</span>
           <h2>Censos {!cargando && !error && `(${censos.length})`}</h2>
-          <p className="bc-section-description">Consulta la fecha, las reses detectadas y el peso mínimo estimado en cada censo.</p>
+          <p className="bc-section-description">Consulta la fecha, el estado y los resultados de cada censo.</p>
         </div>
         <Link to={`/censos/nuevo?finca=${idFinca}`} className="bc-btn bc-btn-primary">
           Registrar censo
@@ -52,7 +52,7 @@ export default function CensosDeFinca({ idFinca }) {
       {!cargando && !error && censos.length === 0 && (
         <EmptyState
           title="Esta finca aún no tiene censos"
-          description="Carga una imagen o video para iniciar el primer censo con Gemini 3.8 Flash."
+          description="Carga una imagen o video para iniciar el primer censo."
           icon="calendar"
         />
       )}
@@ -67,9 +67,9 @@ export default function CensosDeFinca({ idFinca }) {
                   <th>Censo</th>
                   <th>Fecha</th>
                   <th>Estado</th>
-                  <th>Reses (IA mín.)</th>
-                  <th>Peso prom. (mín.)</th>
-                  <th>Peso total (mín.)</th>
+                  <th>Reses</th>
+                  <th>Peso prom.</th>
+                  <th>Peso total</th>
                   <th>Conteo manual</th>
                   <th>Nota</th>
                 </tr>

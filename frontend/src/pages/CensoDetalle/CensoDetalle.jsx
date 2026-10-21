@@ -109,21 +109,17 @@ export default function CensoDetalle() {
               <span className="ms-2" style={{ color: "var(--bc-muted)", fontSize: ".9rem" }}>
                 {censo.nombre_finca} · {fechaHora(censo.fecha_procesamiento)}
               </span>
-              <p className="bc-page-description">Resultados del conteo y peso mínimo estimado con Gemini 3.8 Flash.</p>
+              <p className="bc-page-description">Resultados del conteo y seguimiento de este registro.</p>
             </div>
-          </div>
-
-          <div className="bc-demo-note">
-            Análisis procesado con <strong>Google AI Studio (Gemini 3.8 Flash)</strong> adaptando el conteo de reses y el peso estimado al límite inferior del rango detectado.
           </div>
 
           {/* Resumen */}
           <section className="bc-card bc-census-count" aria-labelledby="censo-conteo-title">
             <div className="bc-census-count__main">
-              <span className="bc-module-eyebrow">Resultado disponible (rango menor)</span>
-              <h2 id="censo-conteo-title">Bovinos detectados y peso total estimado</h2>
+              <span className="bc-module-eyebrow">Resultado disponible</span>
+              <h2 id="censo-conteo-title">Bovinos detectados en este censo</h2>
               <strong>
-                {ia ?? "—"}{ia != null && <small> reses</small>}
+                {ia ?? "—"}{ia != null && <small> animales</small>}
                 {pesoTotal != null && (
                   <span className="ms-3" style={{ fontSize: "0.75em", opacity: 0.9 }}>
                     · {pesoTotal.toLocaleString("es-CO")} <small>kg total</small>
@@ -132,7 +128,7 @@ export default function CensoDetalle() {
               </strong>
               <p>
                 {censo.observaciones ||
-                  "Conteo y peso calculados por Gemini 3.8 Flash tomando el valor mínimo del rango estimado."}
+                  "Este es un conteo agregado del análisis; el censo no vincula bovinos individuales."}
               </p>
             </div>
             <Link to={`/fincas/${id}`} className="bc-btn bc-btn-outline">Ver finca y bovinos registrados</Link>
@@ -141,47 +137,36 @@ export default function CensoDetalle() {
           <div className="row g-3 mb-4">
             <div className="col-6 col-lg-3">
               <div className="bc-stat">
-                <div className="bc-stat-label">Conteo IA (rango menor)</div>
-                <div className="bc-stat-value bc-stat-green">{ia ?? "—"} <small>reses</small></div>
-                {censo.conteo_maximo != null && censo.conteo_maximo !== censo.conteo_minimo && (
-                  <div className="bc-stat-hint">Rango: {censo.conteo_minimo}–{censo.conteo_maximo}</div>
-                )}
+                <div className="bc-stat-label">Conteo de la IA</div>
+                <div className="bc-stat-value bc-stat-green">{ia ?? "—"} <small>animales</small></div>
               </div>
             </div>
             <div className="col-6 col-lg-3">
               <div className="bc-stat">
-                <div className="bc-stat-label">Peso prom. (rango menor)</div>
+                <div className="bc-stat-label">Peso estimado (promedio)</div>
                 <div className="bc-stat-value">
-                  {pesoPromedio ?? "—"} {pesoPromedio != null && <small>kg/res</small>}
+                  {pesoPromedio ?? "—"} {pesoPromedio != null && <small>kg</small>}
                 </div>
-                {censo.peso_promedio_maximo_kg != null && censo.peso_promedio_maximo_kg !== censo.peso_promedio_minimo_kg && (
-                  <div className="bc-stat-hint">Rango: {censo.peso_promedio_minimo_kg}–{censo.peso_promedio_maximo_kg} kg</div>
-                )}
               </div>
             </div>
             <div className="col-6 col-lg-3">
               <div className="bc-stat">
-                <div className="bc-stat-label">Peso total (rango menor)</div>
+                <div className="bc-stat-label">Peso total estimado</div>
                 <div className="bc-stat-value bc-stat-green">
                   {pesoTotal != null ? pesoTotal.toLocaleString("es-CO") : "—"} {pesoTotal != null && <small>kg</small>}
                 </div>
-                {censo.peso_total_maximo_kg != null && censo.peso_total_maximo_kg !== censo.peso_total_minimo_kg && (
-                  <div className="bc-stat-hint">
-                    Rango: {censo.peso_total_minimo_kg?.toLocaleString("es-CO")}–{censo.peso_total_maximo_kg?.toLocaleString("es-CO")} kg
-                  </div>
-                )}
               </div>
             </div>
             <div className="col-6 col-lg-3">
               <div className="bc-stat">
-                <div className="bc-stat-label">Conteo manual / Dif.</div>
+                <div className="bc-stat-label">Conteo manual</div>
                 <div className="bc-stat-value">
-                  {manual ?? "—"} {manual != null && <small>reses</small>}
+                  {manual ?? "—"} {manual != null && <small>animales</small>}
                 </div>
                 <div className="bc-stat-hint">
                   {diferencia == null
-                    ? "Sin conteo manual"
-                    : `Dif. IA − manual: ${diferencia > 0 ? `+${diferencia}` : diferencia}`}
+                    ? "Sin registrar"
+                    : `Diferencia: ${diferencia > 0 ? `+${diferencia}` : diferencia}`}
                 </div>
               </div>
             </div>
@@ -191,7 +176,7 @@ export default function CensoDetalle() {
           <form className="bc-card bc-form-narrow mb-4" onSubmit={guardar} noValidate>
             <h2 className="bc-census-form-title">Conteo manual</h2>
             <p className="bc-sub" style={{ color: "var(--bc-muted)", fontSize: ".9rem" }}>
-              Registra cuántos animales contaste tú en el mismo recorrido, para compararlo con el de Gemini 3.8 Flash.
+              Registra cuántos animales contaste tú en el mismo recorrido, para compararlo con el de la IA.
             </p>
 
             {errorForm && <AlertMessage>{errorForm}</AlertMessage>}
@@ -220,7 +205,6 @@ export default function CensoDetalle() {
               <dt>Finca</dt>
               <dd><Link to={`/fincas/${id}`} className="bc-rowlink">{censo.nombre_finca}</Link></dd>
               <dt>Fecha</dt><dd>{fechaHora(censo.fecha_procesamiento)}</dd>
-              <dt>Modelo IA</dt><dd>{censo.modelo_ia || "gemini-3.8-flash"}</dd>
               <dt>Estado</dt><dd>{censo.estado ?? "—"}</dd>
               <dt>Tiempo de análisis</dt>
               <dd>{censo.tiempo_procesamiento === 0 ? "menos de 1 s" : `${censo.tiempo_procesamiento} s`}</dd>

@@ -94,10 +94,6 @@ export default function Dashboard() {
 
       {resumen && (
         <>
-          <div className="bc-demo-note">
-            Análisis impulsado por <strong>Google AI Studio (Gemini 3.8 Flash)</strong> tomando el valor mínimo del rango para el conteo de reses y el peso estimado.
-          </div>
-
           {/* Resumen general */}
           <div className="row g-3 mb-3">
             <div className="col-6 col-lg-4">
@@ -131,21 +127,21 @@ export default function Dashboard() {
               <div className="row g-3 mb-4">
                 <div className="col-6 col-lg-3">
                   <Tarjeta
-                    etiqueta="Reses IA (rango menor)" verde unidad="reses"
+                    etiqueta="Conteo de la IA" verde unidad="animales"
                     valor={resumen.cantidad_detectada_ultimo_censo ?? "—"}
                     pista={resumen.fecha_ultimo_censo ? fechaHora(resumen.fecha_ultimo_censo) : null}
                   />
                 </div>
                 <div className="col-6 col-lg-3">
                   <Tarjeta
-                    etiqueta="Peso total (rango menor)" verde unidad="kg"
+                    etiqueta="Peso total estimado" verde unidad="kg"
                     valor={pesoTotalUltimo != null ? pesoTotalUltimo.toLocaleString("es-CO") : "—"}
                     pista={resumen.peso_estimado_ultimo_censo != null ? `${resumen.peso_estimado_ultimo_censo} kg/res prom.` : null}
                   />
                 </div>
                 <div className="col-6 col-lg-3">
                   <Tarjeta
-                    etiqueta="Conteo manual" unidad="reses"
+                    etiqueta="Conteo manual" unidad="animales"
                     valor={resumen.conteo_manual_ultimo_censo ?? "—"}
                     pista={resumen.conteo_manual_ultimo_censo == null ? "Sin registrar" : null}
                   />
@@ -173,7 +169,7 @@ export default function Dashboard() {
             <div className="bc-card bc-chart-card">
               <h2>Evolución del conteo</h2>
               <p className="bc-sub">
-                Conteo de Gemini 3.8 Flash frente al conteo manual en cada censo. Los censos sin conteo
+                Conteo de la IA frente al conteo manual en cada censo. Los censos sin conteo
                 manual solo muestran el punto de la IA.
               </p>
               <div className="bc-chart-box">
@@ -195,7 +191,7 @@ export default function Dashboard() {
                     />
                     <Legend />
                     <Line
-                      type="monotone" dataKey="cantidad_animales" name="Conteo de la IA (rango menor)"
+                      type="monotone" dataKey="cantidad_animales" name="Conteo de la IA"
                       stroke={COLOR_IA} strokeWidth={2.5} dot={{ r: 4 }} activeDot={{ r: 6 }}
                     />
                     <Line

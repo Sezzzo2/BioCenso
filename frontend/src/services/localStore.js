@@ -1,4 +1,4 @@
-const STORAGE_KEY = "biocenso_local_db_v1";
+const STORAGE_KEY = "biocenso_local_db_v2";
 
 const INITIAL_DB = {
   usuario: {
@@ -94,18 +94,16 @@ const INITIAL_DB = {
       tiempo_procesamiento: 3.4,
       nota: "Vuelo potrero central - mañana",
       cantidad_animales: 14,
-      conteo_minimo: 14,
-      conteo_maximo: 16,
       peso_estimado: 340,
       peso_promedio_minimo_kg: 340,
       peso_promedio_maximo_kg: 380,
       peso_total_estimado: 4760,
       peso_total_minimo_kg: 4760,
-      peso_total_maximo_kg: 6080,
+      peso_total_maximo_kg: 5320,
       observaciones:
-        "Análisis con Gemini 3.8 Flash: se estimaron entre 14 y 16 bovinos con peso entre 340 y 380 kg/res. Se toma el rango menor (14 reses, 340 kg promedio, 4760 kg total).",
+        "Se identificaron 14 bovinos en pastoreo con un peso estimado de 340 kg por animal (4.760 kg en total).",
       conteo_manual: 15,
-      modelo_ia: "gemini-3.8-flash",
+      modelo_ia: "YOLOv26s",
     },
   ],
 };

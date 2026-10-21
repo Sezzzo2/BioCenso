@@ -8,9 +8,6 @@ import { fechaHora } from "../../utils/censos.js";
 import { extraerError } from "../../utils/errores.js";
 import { StatCard } from "../../components/ui/SharedUI.jsx";
 
-// Con el mock de IA la precisión no es real. Actívala cuando el modelo esté validado.
-const MOSTRAR_PRECISION = false;
-
 const COLOR_IA = "#245c3a";
 const COLOR_MANUAL = "#d89b24";
 const EVOLUCION_VACIA = [];
@@ -81,6 +78,11 @@ export default function Dashboard() {
 
   const diferencia = resumen?.diferencia_ultimo_censo;
   const hayCensos = (resumen?.numero_censos ?? 0) > 0;
+  const pesoTotalUltimo =
+    resumen?.peso_total_estimado_ultimo_censo ??
+    (resumen?.cantidad_detectada_ultimo_censo != null && resumen?.peso_estimado_ultimo_censo != null
+      ? Math.round(resumen.cantidad_detectada_ultimo_censo * resumen.peso_estimado_ultimo_censo * 10) / 10
+      : null);
 
   return (
     <>
@@ -93,8 +95,7 @@ export default function Dashboard() {
       {resumen && (
         <>
           <div className="bc-demo-note">
-            Datos de demostración: el conteo de la IA lo genera un servicio simulado, porque el
-            modelo real todavía no está entrenado.
+            Análisis impulsado por <strong>Google AI Studio (Gemini 3.8 Flash)</strong> tomando el valor mínimo del rango para el conteo de reses y el peso estimado.
           </div>
 
           {/* Resumen general */}
@@ -130,14 +131,21 @@ export default function Dashboard() {
               <div className="row g-3 mb-4">
                 <div className="col-6 col-lg-3">
                   <Tarjeta
-                    etiqueta="Conteo de la IA" verde unidad="animales"
+                    etiqueta="Reses IA (rango menor)" verde unidad="reses"
                     valor={resumen.cantidad_detectada_ultimo_censo ?? "—"}
                     pista={resumen.fecha_ultimo_censo ? fechaHora(resumen.fecha_ultimo_censo) : null}
                   />
                 </div>
                 <div className="col-6 col-lg-3">
                   <Tarjeta
-                    etiqueta="Conteo manual" unidad="animales"
+                    etiqueta="Peso total (rango menor)" verde unidad="kg"
+                    valor={pesoTotalUltimo != null ? pesoTotalUltimo.toLocaleString("es-CO") : "—"}
+                    pista={resumen.peso_estimado_ultimo_censo != null ? `${resumen.peso_estimado_ultimo_censo} kg/res prom.` : null}
+                  />
+                </div>
+                <div className="col-6 col-lg-3">
+                  <Tarjeta
+                    etiqueta="Conteo manual" unidad="reses"
                     valor={resumen.conteo_manual_ultimo_censo ?? "—"}
                     pista={resumen.conteo_manual_ultimo_censo == null ? "Sin registrar" : null}
                   />
@@ -148,15 +156,6 @@ export default function Dashboard() {
                     valor={diferencia == null ? "—" : diferencia > 0 ? `+${diferencia}` : diferencia}
                   />
                 </div>
-                {MOSTRAR_PRECISION && (
-                  <div className="col-6 col-lg-3">
-                    <Tarjeta
-                      etiqueta="Precisión del último censo"
-                      valor={resumen.porcentaje_precision_ultimo_censo ?? "—"}
-                      unidad="%"
-                    />
-                  </div>
-                )}
               </div>
             </>
           ) : (
@@ -174,7 +173,7 @@ export default function Dashboard() {
             <div className="bc-card bc-chart-card">
               <h2>Evolución del conteo</h2>
               <p className="bc-sub">
-                Conteo de la IA frente al conteo manual en cada censo. Los censos sin conteo
+                Conteo de Gemini 3.8 Flash frente al conteo manual en cada censo. Los censos sin conteo
                 manual solo muestran el punto de la IA.
               </p>
               <div className="bc-chart-box">
@@ -196,7 +195,7 @@ export default function Dashboard() {
                     />
                     <Legend />
                     <Line
-                      type="monotone" dataKey="cantidad_animales" name="Conteo de la IA"
+                      type="monotone" dataKey="cantidad_animales" name="Conteo de la IA (rango menor)"
                       stroke={COLOR_IA} strokeWidth={2.5} dot={{ r: 4 }} activeDot={{ r: 6 }}
                     />
                     <Line

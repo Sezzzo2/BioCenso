@@ -4,22 +4,24 @@ import { listarFincas } from "../../services/fincaService.js";
 import { crearCenso, idDeCenso } from "../../services/censoService.js";
 import { extraerError } from "../../utils/errores.js";
 
-// PROVISIONAL: iguala el límite al del backend (multer)
 const MAX_MB = 200;
 
 function mensajeDeError(err) {
-  if (err.code === "ERR_CANCELED") return "Subida cancelada.";
+  if (err?.name === "AbortError" || err.code === "ERR_CANCELED") return "Subida cancelada.";
   if (err.code === "ECONNABORTED") {
     return "La operación tardó demasiado. Prueba con un archivo más corto o más liviano.";
   }
+  if (err?.message?.includes("Gemini API")) {
+    return err.message;
+  }
   if (!err.response) {
-    return "No se pudo conectar con el servidor. Verifica que el backend esté en ejecución.";
+    return err?.message || "No se pudo completar el análisis con Gemini 3.8 Flash.";
   }
   switch (err.response.status) {
     case 404: return "La finca no existe o no te pertenece.";
     case 413: return "El archivo supera el tamaño que acepta el servidor.";
     case 502: return "El servicio de inteligencia artificial no respondió. Verifica que esté en ejecución e inténtalo de nuevo.";
-    default: return extraerError(err); // el 422 trae el motivo (formato no permitido, etc.)
+    default: return extraerError(err);
   }
 }
 
@@ -43,7 +45,7 @@ export default function CensoNuevo() {
     listarFincas()
       .then((lista) => {
         setFincas(lista);
-        if (!params.get("finca") && lista.length === 1) setIdFinca(String(lista[0].id_finca));
+        if (!params.get("finca") && lista.length >= 1) setIdFinca(String(lista[0].id_finca));
       })
       .catch((err) => setError(extraerError(err)))
       .finally(() => setCargandoFincas(false));
@@ -76,18 +78,20 @@ export default function CensoNuevo() {
     e.preventDefault();
     setError("");
     if (!idFinca) return setError("Selecciona la finca del censo.");
-    if (!archivo) return setError("Selecciona el video del dron.");
+    if (!archivo) return setError("Selecciona el video o imagen del dron.");
 
     controlador.current = new AbortController();
     setProgreso(0);
     setFase("subiendo");
     try {
       const data = await crearCenso({
-        idFinca, nota, archivo,
+        idFinca,
+        nota,
+        archivo,
         signal: controlador.current.signal,
         onProgress: (p) => {
           setProgreso(p);
-          if (p >= 100) setFase("analizando"); // ya se subió: el servidor está procesando
+          if (p >= 100) setFase("analizando");
         },
       });
       setResultado(data);
@@ -111,29 +115,86 @@ export default function CensoNuevo() {
 
   /* ---------- Resultado ---------- */
   if (fase === "listo") {
+    const det = resultado?.deteccion || resultado?.censo || {};
+    const reses = det.cantidad_animales ?? det.count ?? 0;
+    const pesoProm = det.peso_estimado ?? det.peso_estimado_promedio ?? 0;
+    const pesoTotal = det.peso_total_estimado ?? Math.round(reses * pesoProm * 10) / 10;
+
     return (
       <>
-        {idDeCenso(resultado) && (
-          <Link to={`/fincas/${idFinca}/censos/${idDeCenso(resultado)}`} className="bc-btn bc-btn-outline">
-            Ver detalle
-          </Link>
-        )}
         <Link to={volverA} className="bc-back">← Volver a la finca</Link>
-        <div className="bc-page-head mt-3"><h1>Censo registrado</h1></div>
+        <div className="bc-page-head mt-3">
+          <h1>Censo procesado con Gemini 3.8 Flash</h1>
+          {idDeCenso(resultado) && (
+            <Link to={`/fincas/${idFinca}/censos/${idDeCenso(resultado)}`} className="bc-btn bc-btn-outline">
+              Ver detalle completo
+            </Link>
+          )}
+        </div>
 
-        <div className="bc-alert-ok">
-          El censo se procesó y se guardó{idDeCenso(resultado) ? ` (n.º ${idDeCenso(resultado)})` : ""}.
+        <div className="bc-alert-ok mb-3">
+          El censo se analizó con <strong>Gemini 3.8 Flash</strong> y se guardó correctamente
+          {idDeCenso(resultado) ? ` (n.º ${idDeCenso(resultado)})` : ""}. Se aplicó el límite inferior del rango estimado.
         </div>
-        <div className="bc-demo-note">
-          Resultado de demostración: el análisis lo hace un servicio simulado, porque el modelo real
-          todavía no está entrenado.
+
+        <div className="row g-3 mb-4">
+          <div className="col-12 col-md-4">
+            <div className="bc-stat">
+              <div className="bc-stat-label">Reses detectadas (rango menor)</div>
+              <div className="bc-stat-value bc-stat-green">
+                {reses} <small>reses</small>
+              </div>
+              {det.conteo_maximo != null && det.conteo_maximo !== det.conteo_minimo && (
+                <div className="bc-stat-hint">
+                  Rango estimado: {det.conteo_minimo} – {det.conteo_maximo} reses
+                </div>
+              )}
+            </div>
+          </div>
+          <div className="col-12 col-md-4">
+            <div className="bc-stat">
+              <div className="bc-stat-label">Peso prom. por res (rango menor)</div>
+              <div className="bc-stat-value">
+                {pesoProm} <small>kg</small>
+              </div>
+              {det.peso_promedio_maximo_kg != null && det.peso_promedio_maximo_kg !== det.peso_promedio_minimo_kg && (
+                <div className="bc-stat-hint">
+                  Rango estimado: {det.peso_promedio_minimo_kg} – {det.peso_promedio_maximo_kg} kg
+                </div>
+              )}
+            </div>
+          </div>
+          <div className="col-12 col-md-4">
+            <div className="bc-stat">
+              <div className="bc-stat-label">Peso total estimado (rango menor)</div>
+              <div className="bc-stat-value bc-stat-green">
+                {pesoTotal.toLocaleString("es-CO")} <small>kg</small>
+              </div>
+              {det.peso_total_maximo_kg != null && det.peso_total_maximo_kg !== det.peso_total_minimo_kg && (
+                <div className="bc-stat-hint">
+                  Rango total: {det.peso_total_minimo_kg?.toLocaleString("es-CO")} – {det.peso_total_maximo_kg?.toLocaleString("es-CO")} kg
+                </div>
+              )}
+            </div>
+          </div>
         </div>
+
+        {det.observaciones && (
+          <div className="bc-card mb-4">
+            <span className="bc-module-eyebrow">Análisis de Gemini 3.8 Flash</span>
+            <p className="mb-0 mt-1">{det.observaciones}</p>
+          </div>
+        )}
 
         <div className="bc-form-actions mb-4">
-          <Link to={volverA} className="bc-btn bc-btn-primary">Ir a la finca</Link>
+          {idDeCenso(resultado) && (
+            <Link to={`/fincas/${idFinca}/censos/${idDeCenso(resultado)}`} className="bc-btn bc-btn-primary">
+              Ver ficha del censo
+            </Link>
+          )}
+          <Link to={volverA} className="bc-btn bc-btn-outline">Ir a la finca</Link>
           <button className="bc-btn bc-btn-outline" onClick={reiniciar}>Registrar otro censo</button>
         </div>
-
       </>
     );
   }
@@ -145,8 +206,7 @@ export default function CensoNuevo() {
       <div className="bc-page-head mt-3"><h1>Nuevo censo</h1></div>
 
       <div className="bc-demo-note">
-        El conteo se genera con un servicio de IA simulado (modelo en desarrollo): los resultados
-        son de demostración.
+        Análisis impulsado por <strong>Google AI Studio (Gemini 3.8 Flash)</strong>: determina la cantidad de reses y el peso estimado (promedio y total) adaptándose automáticamente al valor mínimo del rango.
       </div>
 
       <form className="bc-card bc-form-narrow" onSubmit={enviar} noValidate>
@@ -164,7 +224,7 @@ export default function CensoNuevo() {
         </div>
 
         <div className="bc-field">
-          <label htmlFor="archivo">Video del dron (máx. {MAX_MB} MB)</label>
+          <label htmlFor="archivo">Video o imagen del dron (máx. {MAX_MB} MB)</label>
           <input id="archivo" ref={inputArchivo} type="file" accept="video/*,image/*"
             className="bc-input" disabled={ocupado} onChange={elegirArchivo} />
           {preview && archivo?.type.startsWith("video/") && (
@@ -194,8 +254,8 @@ export default function CensoNuevo() {
             </div>
             <p className="bc-progress-label">
               {fase === "subiendo"
-                ? `Subiendo archivo... ${progreso}%`
-                : "Archivo subido. Analizando con la IA, esto puede tardar unos minutos..."}
+                ? `Preparando archivo... ${progreso}%`
+                : "Consultando a Gemini 3.8 Flash para contar reses y calcular peso mínimo estimado..."}
             </p>
           </div>
         )}
@@ -203,13 +263,13 @@ export default function CensoNuevo() {
         <div className="bc-form-actions">
           {!ocupado && (
             <>
-              <button type="submit" className="bc-btn bc-btn-primary">Procesar censo</button>
+              <button type="submit" className="bc-btn bc-btn-primary">Analizar con Gemini 3.8 Flash</button>
               <Link to={volverA} className="bc-btn bc-btn-outline">Cancelar</Link>
             </>
           )}
-          {fase === "subiendo" && (
+          {ocupado && (
             <button type="button" className="bc-btn bc-btn-danger" onClick={cancelar}>
-              Cancelar subida
+              Cancelar análisis
             </button>
           )}
         </div>

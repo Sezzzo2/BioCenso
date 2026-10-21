@@ -1,10 +1,10 @@
 import api from "./api.js";
+import { guardarDB, leerDB, siguienteId } from "./localStore.js";
 
 const normalizarLista = (data) =>
   Array.isArray(data) ? data : data?.animales ?? data?.data ?? [];
 const normalizarItem = (data) => data?.animal ?? data?.data ?? data;
 
-// Quita campos vacíos y convierte el peso a número
 const limpiar = (form) => {
   const datos = {};
   for (const [k, v] of Object.entries(form)) {
@@ -22,22 +22,92 @@ const aFormData = (datos, imagen, extra = {}) => {
   return fd;
 };
 
-export const listarAnimalesDeFinca = (idFinca) =>
-  api.get(`/animales/finca/${idFinca}`).then((r) => normalizarLista(r.data));
+const leerImagenDataUrl = (archivo) =>
+  new Promise((resolve) => {
+    if (!archivo) return resolve(null);
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => resolve(null);
+    reader.readAsDataURL(archivo);
+  });
 
-export const obtenerAnimal = (id) =>
-  api.get(`/animales/${id}`).then((r) => normalizarItem(r.data));
-
-export const crearAnimal = (idFinca, form, imagen) =>
-  api
-    .post("/animales", aFormData(limpiar(form), imagen, { id_finca: idFinca }))
-    .then((r) => normalizarItem(r.data));
-
-// Sin foto nueva: JSON. Con foto nueva: multipart.
-export const actualizarAnimal = (id, form, imagen) => {
-  const datos = limpiar(form);
-  const cuerpo = imagen ? aFormData(datos, imagen) : datos;
-  return api.put(`/animales/${id}`, cuerpo).then((r) => normalizarItem(r.data));
+export const listarAnimalesDeFinca = async (idFinca) => {
+  try {
+    const r = await api.get(`/animales/finca/${idFinca}`);
+    return normalizarLista(r.data);
+  } catch (err) {
+    if (err.response) throw err;
+    return leerDB().animales.filter((a) => String(a.id_finca) === String(idFinca));
+  }
 };
 
-export const eliminarAnimal = (id) => api.delete(`/animales/${id}`);
+export const obtenerAnimal = async (id) => {
+  try {
+    const r = await api.get(`/animales/${id}`);
+    return normalizarItem(r.data);
+  } catch (err) {
+    if (err.response) throw err;
+    const animal = leerDB().animales.find((a) => String(a.id_animal) === String(id));
+    if (!animal) {
+      const e = new Error("No encontrado");
+      e.response = { status: 404 };
+      throw e;
+    }
+    return animal;
+  }
+};
+
+export const crearAnimal = async (idFinca, form, imagen) => {
+  const limpio = limpiar(form);
+  try {
+    const r = await api.post("/animales", aFormData(limpio, imagen, { id_finca: idFinca }));
+    return normalizarItem(r.data);
+  } catch (err) {
+    if (err.response) throw err;
+    const db = leerDB();
+    const imagen_url = await leerImagenDataUrl(imagen);
+    const nuevo = {
+      id_animal: siguienteId(db.animales, "id_animal"),
+      id_finca: Number(idFinca),
+      ...limpio,
+      imagen_url,
+    };
+    db.animales.push(nuevo);
+    guardarDB(db);
+    return nuevo;
+  }
+};
+
+export const actualizarAnimal = async (id, form, imagen) => {
+  const datos = limpiar(form);
+  try {
+    const cuerpo = imagen ? aFormData(datos, imagen) : datos;
+    const r = await api.put(`/animales/${id}`, cuerpo);
+    return normalizarItem(r.data);
+  } catch (err) {
+    if (err.response) throw err;
+    const db = leerDB();
+    const idx = db.animales.findIndex((a) => String(a.id_animal) === String(id));
+    if (idx === -1) throw err;
+    const imagen_url = imagen ? await leerImagenDataUrl(imagen) : db.animales[idx].imagen_url;
+    db.animales[idx] = {
+      ...db.animales[idx],
+      ...datos,
+      imagen_url,
+    };
+    guardarDB(db);
+    return db.animales[idx];
+  }
+};
+
+export const eliminarAnimal = async (id) => {
+  try {
+    return await api.delete(`/animales/${id}`);
+  } catch (err) {
+    if (err.response) throw err;
+    const db = leerDB();
+    db.animales = db.animales.filter((a) => String(a.id_animal) !== String(id));
+    guardarDB(db);
+    return { ok: true };
+  }
+};

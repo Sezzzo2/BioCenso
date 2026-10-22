@@ -27,3 +27,8 @@ dist-ssr
 .env
 !.env.example
 !.env.production
+
+# Respaldos de la base: contienen usuarios y contrasenas cifradas
+backup*.sql
+*.backup
+*.dump

@@ -44,12 +44,22 @@ export default function Inicio() {
             Sube el video del vuelo y BioCenso detectará cada bovino, dando el total y comparándolo
             con el registro de tu finca.
           </p>
-          <div className="heroe-acciones">
-            <Link className="btn btn-brote" to="/censos">
-              <span className="ico-circ"><Icon name="arrowUp" strokeWidth={2.4} /></span>Subir video del censo
-            </Link>
-            <Link className="btn btn-oscuro" to="/fincas">Ver mis fincas</Link>
-          </div>
+          {/* Subir videos exige sesión: sin ella, los botones llevan a iniciar sesión o crear cuenta */}
+          {autenticado ? (
+            <div className="heroe-acciones">
+              <Link className="btn btn-brote" to="/censos">
+                <span className="ico-circ"><Icon name="arrowUp" strokeWidth={2.4} /></span>Subir video del censo
+              </Link>
+              <Link className="btn btn-oscuro" to="/fincas">Ver mis fincas</Link>
+            </div>
+          ) : (
+            <div className="heroe-acciones">
+              <Link className="btn btn-brote" to="/login" state={{ from: { pathname: "/censos" } }}>
+                <span className="ico-circ"><Icon name="user" strokeWidth={2.2} /></span>Iniciar sesión para subir un video
+              </Link>
+              <Link className="btn btn-oscuro" to="/registro">Crear cuenta</Link>
+            </div>
+          )}
         </div>
         <DetectionPreview />
       </div>

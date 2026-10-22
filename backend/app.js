@@ -87,12 +87,18 @@ app.get("/health/db", async (req, res, next) => {
   }
 });
 
-app.get("/health/cloudinary", async (req, res, next) => {
+app.get("/health/cloudinary", async (req, res) => {
+  const configuracion = cloudinary.diagnostico();
   try {
-    const resultado = await cloudinary.api.ping();
-    res.json({ estado: "ok", cloudinary: resultado });
+    await cloudinary.api.ping();
+    res.json({ estado: "ok", configuracion });
   } catch (error) {
-    next(error);
+    // El mensaje de Cloudinary ("Invalid api_key", "Unknown cloud_name"...) no contiene las claves
+    res.status(502).json({
+      estado: "error",
+      configuracion,
+      motivo: error?.error?.message || error?.message || "Cloudinary no respondió",
+    });
   }
 });
 

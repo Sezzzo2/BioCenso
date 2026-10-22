@@ -7,8 +7,19 @@ function errorHandler(err, req, res, next) {
     return res.status(403).json({ error: "Origen no permitido" });
   }
 
+  // Fallos de Cloudinary al guardar la foto de un bovino (credenciales, red, cuota)
+  if (err.http_code || err.error?.http_code || /cloudinary|api_key|cloud_name|signature/i.test(err.message || "")) {
+    return res.status(502).json({
+      error: "No se pudo guardar la foto. Inténtalo de nuevo o registra el bovino sin foto y agrégala después.",
+    });
+  }
+
+  if (err.message === "Formato de imagen no permitido (solo JPG, PNG o WEBP)") {
+    return res.status(422).json({ error: err.message });
+  }
+
   if (err.code === "LIMIT_FILE_SIZE") {
-    return res.status(413).json({ error: "El archivo supera el tamaño máximo permitido (20 MB)" });
+    return res.status(413).json({ error: "El archivo supera el tamaño máximo permitido (5 MB para fotos, 20 MB para censos)" });
   }
 
   if (err.type === "entity.too.large") {

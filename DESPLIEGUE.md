@@ -36,7 +36,7 @@ Sin este paso el backend responde `no existe la función fn_...`.
 | Variable | Valor |
 |---|---|
 | `GEMINI_API_KEY` | Una clave **nueva** de Google AI Studio (la anterior quedó publicada; revócala) |
-| `GEMINI_MODEL` | Opcional. Por defecto `gemini-3.8-flash` |
+| `GEMINI_MODEL` | Opcional. Modelo que se prueba primero; si está saturado se usan los de respaldo |
 | `PORT` | `8000` (fijo, para que el backend sepa dónde llamarlo) |
 
 En **Settings → Networking** no generes dominio público: el backend lo llama por la red privada
@@ -53,7 +53,7 @@ En **Settings → Networking** no generes dominio público: el backend lo llama 
 | `FRONTEND_ORIGIN` | `https://biocenso-ucc-2026.web.app,https://biocenso-ucc-2026.firebaseapp.com` |
 | `TRUST_PROXY` | `true` |
 | `AI_SERVICE_URL` | `http://${{ai-service.RAILWAY_PRIVATE_DOMAIN}}:8000` |
-| `AI_TIMEOUT_MS` | `120000` |
+| `AI_TIMEOUT_MS` | `170000` |
 | `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` | Credenciales **nuevas** de Cloudinary |
 
 Luego **Settings → Networking → Generate Domain** en `backend`. Comprueba:

@@ -2,16 +2,60 @@ import base64
 import json
 import os
 import time
+import urllib.error
 import urllib.request
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 
 # La clave nunca va en el código: se configura como variable de entorno del servicio
 API_KEY = os.getenv("GEMINI_API_KEY", "")
-MODEL_ID = os.getenv("GEMINI_MODEL", "gemini-3.8-flash")
-ENDPOINT = (
-    f"https://generativelanguage.googleapis.com/v1beta/models/{MODEL_ID}:generateContent?key={API_KEY}"
-)
+# Mismos modelos que usaba el frontend: si uno está saturado (503) o sin cuota (429),
+# se prueba el siguiente. GEMINI_MODEL, si se define, se intenta primero.
+MODELOS = [
+    "gemini-3-flash-preview",
+    "gemini-3.5-flash-lite",
+    "gemini-flash-lite-latest",
+    "gemini-3.1-flash-lite-preview",
+    "gemini-3.8-flash",
+    "gemini-flash-latest",
+]
+if os.getenv("GEMINI_MODEL"):
+    MODELOS.insert(0, os.environ["GEMINI_MODEL"])
+REINTENTABLES = {404, 429, 500, 503}
+
+
+def url_modelo(modelo):
+    return f"https://generativelanguage.googleapis.com/v1beta/models/{modelo}:generateContent?key={API_KEY}"
+
+
+# Tiempo por modelo y tope total: el backend espera 170 s y el navegador 180 s
+TIMEOUT_MODELO = float(os.getenv("GEMINI_TIMEOUT_MODELO", "60"))
+TIMEOUT_TOTAL = float(os.getenv("GEMINI_TIMEOUT_TOTAL", "150"))
+
+
+def llamar_gemini(cuerpo):
+    limite = time.monotonic() + TIMEOUT_TOTAL
+    fallos = []
+    for modelo in dict.fromkeys(MODELOS):
+        restante = limite - time.monotonic()
+        if restante < 5:
+            break
+        req = urllib.request.Request(
+            url_modelo(modelo), data=cuerpo,
+            headers={"Content-Type": "application/json"}, method="POST",
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=min(TIMEOUT_MODELO, restante)) as resp:
+                return json.loads(resp.read().decode("utf-8"))
+        except urllib.error.HTTPError as error:
+            if error.code not in REINTENTABLES:
+                raise HTTPException(status_code=502, detail=f"Gemini rechazó la solicitud ({error.code})")
+            fallos.append(f"{modelo}: {error.code}")
+        except (TimeoutError, urllib.error.URLError) as error:
+            fallos.append(f"{modelo}: {type(error).__name__}")
+        print("Gemini no respondió, probando el siguiente modelo:", fallos[-1], flush=True)
+        time.sleep(0.3)
+    raise HTTPException(status_code=503, detail="Ningún modelo de Gemini respondió: " + "; ".join(fallos))
 
 PROMPT_CENSO = """Actúa como el motor de visión por computadora de BioCenso especializado en detección y conteo de ganado bovino (vacas, toros, novillos, terneros).
 1. Examina con máxima atención todo el video o imagen de principio a fin y cuenta TODAS las vacas/reses que aparecen en la escena o recorrido (de pie, echadas, caminando, agrupadas, parcialmente visibles o en sombra). NO subestimes el conteo: "count" debe ser el número total real de reses identificadas.
@@ -66,15 +110,7 @@ async def predict(imagen: UploadFile = File(...)):
         },
     }
 
-    req = urllib.request.Request(
-        ENDPOINT,
-        data=json.dumps(payload).encode("utf-8"),
-        headers={"Content-Type": "application/json"},
-        method="POST",
-    )
-
-    with urllib.request.urlopen(req, timeout=120) as resp:
-        raw_resp = json.loads(resp.read().decode("utf-8"))
+    raw_resp = llamar_gemini(json.dumps(payload).encode("utf-8"))
 
     texto = (
         raw_resp.get("candidates", [{}])[0]

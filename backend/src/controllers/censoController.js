@@ -4,7 +4,7 @@ const pool = require("../config/db");
 
 const AI_SERVICE_URL = process.env.AI_SERVICE_URL || "http://localhost:8000";
 // Analizar un video con Gemini puede tardar más de un minuto
-const AI_TIMEOUT_MS = Number(process.env.AI_TIMEOUT_MS) || 120000;
+const AI_TIMEOUT_MS = Number(process.env.AI_TIMEOUT_MS) || 170000;
 
 async function crearCenso(req, res) {
   const { id_finca, nota } = req.body;

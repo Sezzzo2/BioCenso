@@ -52,7 +52,23 @@ export const obtenerCenso = async (id) => {
 export const idDeCenso = (data) =>
   data?.censo?.id_censo ?? data?.id_censo ?? data?.id ?? null;
 
+// El backend reenvía el archivo al servicio de IA y guarda el censo en la base
 export const crearCenso = async ({ idFinca, nota, archivo, onProgress, signal }) => {
+  if (USAR_BACKEND) {
+    const datos = new FormData();
+    datos.append("id_finca", String(idFinca));
+    if (nota?.trim()) datos.append("nota", nota.trim());
+    datos.append("imagen", archivo);
+    const r = await api.post("/censos", datos, {
+      signal,
+      timeout: 180000,
+      onUploadProgress: (e) => {
+        if (e.total) onProgress?.(Math.round((e.loaded * 100) / e.total));
+      },
+    });
+    return r.data;
+  }
+
   const analisis = await analizarArchivoConGemini(archivo, { onProgress, signal });
 
   const db = leerDB();

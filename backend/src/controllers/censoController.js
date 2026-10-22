@@ -3,6 +3,8 @@ const FormData = require("form-data");
 const pool = require("../config/db");
 
 const AI_SERVICE_URL = process.env.AI_SERVICE_URL || "http://localhost:8000";
+// Analizar un video con Gemini puede tardar más de un minuto
+const AI_TIMEOUT_MS = Number(process.env.AI_TIMEOUT_MS) || 120000;
 
 async function crearCenso(req, res) {
   const { id_finca, nota } = req.body;
@@ -30,7 +32,7 @@ async function crearCenso(req, res) {
 
     const respuestaIA = await axios.post(`${AI_SERVICE_URL}/predict`, formData, {
       headers: formData.getHeaders(),
-      timeout: 15000,
+      timeout: AI_TIMEOUT_MS,
     });
 
     const { count, peso_estimado_promedio, processing_time } = respuestaIA.data;

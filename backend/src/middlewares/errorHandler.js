@@ -7,6 +7,10 @@ function errorHandler(err, req, res, next) {
     return res.status(403).json({ error: "Origen no permitido" });
   }
 
+  if (err.code === "LIMIT_FILE_SIZE") {
+    return res.status(413).json({ error: "El archivo supera el tamaño máximo permitido (20 MB)" });
+  }
+
   if (err.type === "entity.too.large") {
     return res.status(413).json({ error: "El cuerpo de la solicitud es demasiado grande" });
   }

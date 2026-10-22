@@ -22,3 +22,8 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Variables de entorno con secretos (usa los .env.example como plantilla)
+.env
+!.env.example
+!.env.production

@@ -34,6 +34,9 @@ jobs:
 
       - name: Instalar dependencias y compilar frontend
         working-directory: ./frontend
+        env:
+          # Definir VITE_API_URL en Settings > Secrets and variables > Actions > Variables
+          VITE_API_URL: ${{ vars.VITE_API_URL }}
         run: |
           npm ci
           npm run build

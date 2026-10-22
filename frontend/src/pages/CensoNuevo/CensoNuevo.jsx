@@ -4,7 +4,9 @@ import { listarFincas } from "../../services/fincaService.js";
 import { crearCenso, idDeCenso } from "../../services/censoService.js";
 import { extraerError } from "../../utils/errores.js";
 
-const MAX_MB = 200;
+// El backend acepta hasta 20 MB (JPG, PNG, WEBP o MP4)
+const MAX_MB = import.meta.env.VITE_USE_BACKEND === "true" ? 20 : 200;
+const TIPOS = import.meta.env.VITE_USE_BACKEND === "true" ? "video/mp4,image/jpeg,image/png,image/webp" : "video/*,image/*";
 
 function mensajeDeError(err) {
   if (err?.name === "AbortError" || err.code === "ERR_CANCELED") return "Subida cancelada.";
@@ -60,6 +62,10 @@ export default function CensoNuevo() {
     const f = e.target.files?.[0];
     setError("");
     if (!f) return setArchivo(null);
+    if (TIPOS !== "video/*,image/*" && !TIPOS.split(",").includes(f.type)) {
+      e.target.value = "";
+      return setError("Formato no permitido: sube un video MP4 o una imagen JPG, PNG o WEBP.");
+    }
     if (!f.type.startsWith("video/") && !f.type.startsWith("image/")) {
       e.target.value = "";
       return setError("El archivo debe ser un video o una imagen.");
@@ -195,7 +201,7 @@ export default function CensoNuevo() {
 
         <div className="bc-field">
           <label htmlFor="archivo">Video del dron (máx. {MAX_MB} MB)</label>
-          <input id="archivo" ref={inputArchivo} type="file" accept="video/*,image/*"
+          <input id="archivo" ref={inputArchivo} type="file" accept={TIPOS}
             className="bc-input" disabled={ocupado} onChange={elegirArchivo} />
           {preview && archivo?.type.startsWith("video/") && (
             <video src={preview} controls muted className="bc-media" />

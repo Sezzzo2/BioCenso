@@ -1,6 +1,6 @@
-const DEFAULT_KEY_PARTS = ["AQ.Ab8RN6KH7Sjtkk-", "e8K3M-gVULnY7fEWY", "xhmammrtEm_8QwPYuQ"];
-const API_KEY =
-  import.meta.env.VITE_GEMINI_API_KEY || DEFAULT_KEY_PARTS.join("");
+// Solo para el modo local sin backend (desarrollo). Con VITE_USE_BACKEND=true el
+// análisis lo hace el servicio de IA y la clave nunca llega al navegador.
+const API_KEY = import.meta.env.VITE_GEMINI_API_KEY || "";
 
 // Lista de modelos activos con cuota disponible en Google AI Studio
 const MODELOS_DISPONIBLES = [
@@ -193,6 +193,9 @@ async function consultarModeloConPartes(partesMedia, signal, duracion = 20) {
 }
 
 export async function analizarArchivoConGemini(archivo, { onProgress, signal } = {}) {
+  if (!API_KEY) {
+    throw new Error("El análisis sin servidor no está configurado. Inicia sesión y sube el censo desde Censo.");
+  }
   const inicio = performance.now();
   let resultadoCrudo;
 

@@ -3,12 +3,12 @@ import json
 import os
 import time
 import urllib.request
-from fastapi import FastAPI, File, UploadFile
+from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 
-_DEFAULT_KEY = "".join(["AQ.Ab8RN6KH7Sjtkk-", "e8K3M-gVULnY7fEWY", "xhmammrtEm_8QwPYuQ"])
-API_KEY = os.getenv("GEMINI_API_KEY", _DEFAULT_KEY)
-MODEL_ID = "gemini-3.8-flash"
+# La clave nunca va en el código: se configura como variable de entorno del servicio
+API_KEY = os.getenv("GEMINI_API_KEY", "")
+MODEL_ID = os.getenv("GEMINI_MODEL", "gemini-3.8-flash")
 ENDPOINT = (
     f"https://generativelanguage.googleapis.com/v1beta/models/{MODEL_ID}:generateContent?key={API_KEY}"
 )
@@ -39,11 +39,13 @@ app.add_middleware(
 
 @app.get("/health")
 def health():
-    return {"estado": "ok", "servicio": "ai-service"}
+    return {"estado": "ok", "servicio": "ai-service", "clave_configurada": bool(API_KEY)}
 
 
 @app.post("/predict")
 async def predict(imagen: UploadFile = File(...)):
+    if not API_KEY:
+        raise HTTPException(status_code=503, detail="GEMINI_API_KEY no está configurada")
     inicio = time.perf_counter()
     contenido = await imagen.read()
     b64 = base64.b64encode(contenido).decode("utf-8")

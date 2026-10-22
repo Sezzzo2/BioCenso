@@ -1,238 +1,118 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { listarAnimalesDeFinca } from "../../services/animalesService.js";
-import { extraerError } from "../../utils/errores.js";
 import Icon from "../ui/Icon.jsx";
-import "./animales.css";
+import { ButtonLink, EmptyState, FilterSelect, SearchField } from "../ui/SharedUI.jsx";
+import { parseFecha } from "../../utils/format.js";
 
 const compararTexto = (valor) => String(valor ?? "").toLocaleLowerCase("es");
 
-export default function AnimalesDeFinca({ idFinca }) {
-  const [resultado, setResultado] = useState({ idFinca: null, animales: [], error: "" });
+function edad(iso) {
+  const nacimiento = parseFecha(iso);
+  if (!nacimiento) return null;
+  const hoy = new Date();
+  const meses = (hoy.getFullYear() - nacimiento.getFullYear()) * 12 + (hoy.getMonth() - nacimiento.getMonth());
+  if (meses < 24) return `${Math.max(0, meses)} ${meses === 1 ? "mes" : "meses"}`;
+  const anios = Math.floor(meses / 12);
+  return `${anios} ${anios === 1 ? "año" : "años"}`;
+}
+
+function EstadoGeneral({ estado }) {
+  if (!estado) return <span className="tenue">Sin registrar</span>;
+  const clase = estado === "Sano" ? "ok" : estado === "Enfermo" ? "err" : "espera";
+  return <span className={`estado ${clase}`}>{estado}</span>;
+}
+
+// Inventario de bovinos de una finca con búsqueda y filtros (los datos los carga la página)
+export default function AnimalesDeFinca({ idFinca, animales }) {
   const [busqueda, setBusqueda] = useState("");
   const [sexoFiltro, setSexoFiltro] = useState("");
   const [estadoFiltro, setEstadoFiltro] = useState("");
-  const cargando = String(resultado.idFinca) !== String(idFinca);
-  const animales = useMemo(
-    () => cargando ? [] : resultado.animales,
-    [cargando, resultado.animales]
-  );
-  const error = cargando ? "" : resultado.error;
 
-  useEffect(() => {
-    let vigente = true;
-    listarAnimalesDeFinca(idFinca)
-      .then((lista) => {
-        if (vigente) setResultado({ idFinca, animales: lista, error: "" });
-      })
-      .catch((err) => {
-        if (vigente) setResultado({ idFinca, animales: [], error: extraerError(err) });
-      });
-    return () => { vigente = false; };
-  }, [idFinca]);
+  const sexos = useMemo(() => [...new Set(animales.map((a) => a.sexo).filter(Boolean))].sort(), [animales]);
+  const estados = useMemo(() => [...new Set(animales.map((a) => a.estado_general).filter(Boolean))].sort(), [animales]);
 
-  const sexos = useMemo(
-    () => [...new Set(animales.map((animal) => animal.sexo).filter(Boolean))].sort(),
-    [animales]
-  );
-  const estados = useMemo(
-    () => [...new Set(animales.map((animal) => animal.estado_general).filter(Boolean))].sort(),
-    [animales]
-  );
-  const animalesFiltrados = useMemo(() => {
+  const filtrados = useMemo(() => {
     const termino = compararTexto(busqueda.trim());
-    return animales.filter((animal) => {
-      const coincideBusqueda = !termino || [
-        animal.numero_animal,
-        animal.id_animal,
-        animal.sexo,
-        animal.estado_general,
-        animal.estado_reproductivo,
-        animal.enfermedad,
-      ].some((valor) => compararTexto(valor).includes(termino));
-      return coincideBusqueda
-        && (!sexoFiltro || animal.sexo === sexoFiltro)
-        && (!estadoFiltro || animal.estado_general === estadoFiltro);
-    });
+    return animales.filter((a) =>
+      (!termino || [a.numero_animal, a.id_animal, a.sexo, a.estado_general, a.estado_reproductivo, a.enfermedad]
+        .some((v) => compararTexto(v).includes(termino)))
+      && (!sexoFiltro || a.sexo === sexoFiltro)
+      && (!estadoFiltro || a.estado_general === estadoFiltro));
   }, [animales, busqueda, sexoFiltro, estadoFiltro]);
 
-  const machos = animales.filter((animal) => compararTexto(animal.sexo) === "macho").length;
-  const hembras = animales.filter((animal) => compararTexto(animal.sexo) === "hembra").length;
-
-  const limpiarFiltros = () => {
-    setBusqueda("");
-    setSexoFiltro("");
-    setEstadoFiltro("");
-  };
+  const limpiar = () => { setBusqueda(""); setSexoFiltro(""); setEstadoFiltro(""); };
+  const nuevo = `/fincas/${idFinca}/animales/nuevo`;
 
   return (
-    <section className="bc-animals-module" aria-labelledby="animals-title">
-      <div className="bc-section-head bc-module-heading">
-        <div>
-          <span className="bc-module-eyebrow">Inventario de ganado</span>
-          <h2 id="animals-title">Gestión de animales</h2>
-          <p className="bc-animal-section-subtitle">
-            Consulta y administra los bovinos registrados en esta finca.
-          </p>
-        </div>
-        <Link to={`/fincas/${idFinca}/animales/nuevo`} className="bc-btn bc-btn-primary">
-          <Icon name="plus" size={18} />
-          Registrar animal
-        </Link>
+    <section className="panel panel-solido panel-pad bloque" aria-labelledby="t-animales">
+      <div className="bloque-cab">
+        <div><h2 id="t-animales">Bovinos registrados</h2><p>Inventario de ganado de la finca.</p></div>
+        <ButtonLink to={nuevo} variant="light" size="small"><Icon name="plus" />Registrar bovino</ButtonLink>
       </div>
 
-      {!cargando && !error && animales.length > 0 && (
-        <div className="bc-animal-summary" aria-label="Resumen del ganado">
-          <article className="bc-animal-stat">
-            <span className="bc-animal-stat__icon" aria-hidden="true">Σ</span>
-            <div><span>Total de animales</span><strong>{animales.length}</strong></div>
-          </article>
-          <article className="bc-animal-stat">
-            <span className="bc-animal-stat__icon" aria-hidden="true">♂</span>
-            <div><span>Machos</span><strong>{machos}</strong></div>
-          </article>
-          <article className="bc-animal-stat">
-            <span className="bc-animal-stat__icon" aria-hidden="true">♀</span>
-            <div><span>Hembras</span><strong>{hembras}</strong></div>
-          </article>
-        </div>
-      )}
-
-      {cargando && (
-        <div className="bc-module-feedback" role="status" aria-live="polite">
-          <span className="bc-loading-dot" aria-hidden="true" />
-          Cargando animales...
-        </div>
-      )}
-      {error && <div className="bc-alert-error" role="alert">{error}</div>}
-
-      {!cargando && !error && animales.length === 0 && (
-        <div className="bc-card bc-animal-empty">
-          <span className="bc-animal-empty__icon" aria-hidden="true">＋</span>
-          <h3>Esta finca aún no tiene animales</h3>
-          <p>Registra el primer bovino para comenzar a organizar su información y seguimiento.</p>
-          <Link to={`/fincas/${idFinca}/animales/nuevo`} className="bc-btn bc-btn-primary">
-            Registrar el primer animal
-          </Link>
-        </div>
-      )}
-
-      {!cargando && !error && animales.length > 0 && (
+      {animales.length === 0 ? (
+        <EmptyState
+          title="Esta finca aún no tiene bovinos"
+          description="Registra el primer bovino para comenzar a organizar su información y seguimiento."
+          action={<ButtonLink to={nuevo}>Registrar bovino</ButtonLink>}
+        />
+      ) : (
         <>
-          <div className="bc-animal-toolbar">
-            <label className="bc-animal-search" htmlFor="animal-search">
-              <Icon name="search" size={19} />
-              <span className="visually-hidden">Buscar animales</span>
-              <input
-                id="animal-search"
-                type="search"
-                placeholder="Buscar por número, sexo o estado..."
-                value={busqueda}
-                onChange={(event) => setBusqueda(event.target.value)}
-              />
-            </label>
-            <div className="bc-animal-filters">
-              <label>
-                <span className="visually-hidden">Filtrar por sexo</span>
-                <select
-                  className="bc-input"
-                  value={sexoFiltro}
-                  onChange={(event) => setSexoFiltro(event.target.value)}
-                >
-                  <option value="">Todos los sexos</option>
-                  {sexos.map((sexo) => <option key={sexo} value={sexo}>{sexo}</option>)}
-                </select>
-              </label>
-              <label>
-                <span className="visually-hidden">Filtrar por estado general</span>
-                <select
-                  className="bc-input"
-                  value={estadoFiltro}
-                  onChange={(event) => setEstadoFiltro(event.target.value)}
-                >
-                  <option value="">Todos los estados</option>
-                  {estados.map((estado) => <option key={estado} value={estado}>{estado}</option>)}
-                </select>
-              </label>
-            </div>
+          <div className="herramientas">
+            <SearchField id="q-animal" label="Buscar bovinos" placeholder="Buscar por número, sexo o estado"
+              value={busqueda} onChange={setBusqueda} />
+            <FilterSelect id="fs-sexo" label="Filtrar por sexo" value={sexoFiltro} onChange={setSexoFiltro}
+              options={sexos} defaultLabel="Todos los sexos" />
+            <FilterSelect id="fs-estado" label="Filtrar por estado general" value={estadoFiltro} onChange={setEstadoFiltro}
+              options={estados} defaultLabel="Todos los estados" />
           </div>
 
-          <div className="bc-card bc-animal-table-card">
-            {animalesFiltrados.length > 0 ? (
-              <>
-                <div className="bc-animal-table-caption" aria-live="polite">
-                  Mostrando <strong>{animalesFiltrados.length}</strong> de {animales.length} animales
-                </div>
-                <div className="bc-table-wrap">
-                  <table className="bc-table bc-animal-table">
-                    <thead>
-                      <tr>
-                        <th scope="col">Animal</th>
-                        <th scope="col">Sexo</th>
-                        <th scope="col">Peso</th>
-                        <th scope="col">Estado general</th>
-                        <th scope="col"><span className="visually-hidden">Acciones</span></th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {animalesFiltrados.map((animal) => (
-                        <tr key={animal.id_animal}>
+          {filtrados.length === 0 ? (
+            <EmptyState
+              title="No encontramos bovinos con esos filtros"
+              description="Prueba con otro término o limpia los filtros para ver el inventario completo."
+              action={<button type="button" className="btn btn-oscuro btn-sm" onClick={limpiar}>Limpiar filtros</button>}
+            />
+          ) : (
+            <>
+              <p className="pista" style={{ marginBottom: 8 }} aria-live="polite">
+                Mostrando {filtrados.length} de {animales.length} bovinos
+              </p>
+              <div className="tabla-caja" style={{ maxHeight: 560, overflow: "auto" }}>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Bovino</th><th>Sexo</th><th>Edad</th><th className="num">Peso</th>
+                      <th>Estado reproductivo</th><th>Estado general</th><th><span className="sr">Acciones</span></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filtrados.map((a) => {
+                      const ruta = `/fincas/${idFinca}/animales/${a.id_animal}`;
+                      return (
+                        <tr key={a.id_animal}>
                           <td>
-                            <div className="bc-animal-identity">
-                              {animal.imagen_url
-                                ? <img src={animal.imagen_url} alt="" className="bc-thumb" />
-                                : <span className="bc-thumb-ph" aria-hidden="true">B</span>}
-                              <div>
-                                <Link
-                                  to={`/fincas/${idFinca}/animales/${animal.id_animal}`}
-                                  className="bc-rowlink"
-                                >
-                                  {animal.numero_animal || `Animal ${animal.id_animal}`}
-                                </Link>
-                                <span className="bc-animal-id">ID #{animal.id_animal}</span>
-                              </div>
-                            </div>
+                            <span style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                              {a.imagen_url
+                                ? <img src={a.imagen_url} alt="" className="miniatura" />
+                                : <span className="miniatura" aria-hidden="true"><Icon name="vaca" /></span>}
+                              <Link className="fila-link" to={ruta}>{a.numero_animal || `Bovino ${a.id_animal}`}</Link>
+                            </span>
                           </td>
-                          <td>
-                            {animal.sexo
-                              ? <span className="bc-animal-sex">{animal.sexo}</span>
-                              : <span className="bc-animal-muted">Sin especificar</span>}
-                          </td>
-                          <td>
-                            {animal.peso != null
-                              ? <span className="bc-animal-weight">{animal.peso} <small>kg</small></span>
-                              : <span className="bc-animal-muted">Sin registrar</span>}
-                          </td>
-                          <td>
-                            {animal.estado_general
-                              ? <span className="bc-animal-status">{animal.estado_general}</span>
-                              : <span className="bc-animal-muted">Sin registrar</span>}
-                          </td>
-                          <td className="bc-animal-action-cell">
-                            <Link
-                              to={`/fincas/${idFinca}/animales/${animal.id_animal}`}
-                              className="bc-animal-detail-link"
-                              aria-label={`Ver ficha del animal ${animal.numero_animal || animal.id_animal}`}
-                            >
-                              Ver ficha <span aria-hidden="true">→</span>
-                            </Link>
-                          </td>
+                          <td>{a.sexo || <span className="tenue">Sin registrar</span>}</td>
+                          <td>{edad(a.fecha_nacimiento) ?? <span className="tenue">Sin registrar</span>}</td>
+                          <td className="num">{a.peso != null ? `${Number(a.peso)} kg` : "—"}</td>
+                          <td>{a.estado_reproductivo || <span className="tenue">Sin especificar</span>}</td>
+                          <td><EstadoGeneral estado={a.estado_general} /></td>
+                          <td><Link className="btn-tabla" to={ruta} aria-label={`Ver ficha del bovino ${a.numero_animal || a.id_animal}`}>Ver ficha</Link></td>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </>
-            ) : (
-              <div className="bc-animal-no-results" role="status">
-                <h3>No encontramos animales con esos filtros</h3>
-                <p>Prueba con otro término o limpia los filtros para ver el inventario completo.</p>
-                <button type="button" className="bc-btn bc-btn-outline" onClick={limpiarFiltros}>
-                  Limpiar búsqueda y filtros
-                </button>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
-            )}
-          </div>
+            </>
+          )}
         </>
       )}
     </section>

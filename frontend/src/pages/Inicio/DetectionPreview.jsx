@@ -1,34 +1,39 @@
-// Ilustración de una toma aérea con las cajas de detección del modelo.
-const vacas = [
-  [62, 70, -20], [88, 58, 15], [120, 92, 40], [150, 66, -10], [196, 104, 25],
-  [228, 72, -35], [256, 118, 10], [92, 142, 30], [140, 160, -15], [182, 150, 50],
-  [222, 176, 5], [268, 160, -25], [52, 182, 20], [110, 196, -40],
-];
+import { useEffect, useState } from "react";
 
-function DetectionPreview({ total }) {
+// Posiciones (en un lienzo de 400×300) de los bovinos reales de la toma aérea de ejemplo
+const CAJAS = [
+  [212, 97], [211, 114], [139, 121], [157, 129], [220, 134], [117, 139],
+  [155, 146], [226, 152], [216, 166], [189, 181], [232, 202], [284, 196],
+];
+const reducirMovimiento = () =>
+  typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+
+// Toma aérea de ejemplo: las cajas de detección aparecen una a una y el contador las suma
+export default function DetectionPreview() {
+  const [contados, setContados] = useState(() => (reducirMovimiento() ? CAJAS.length : 0));
+
+  useEffect(() => {
+    if (reducirMovimiento()) return undefined;
+    const temporizadores = CAJAS.map((_, i) => setTimeout(() => setContados(i + 1), 750 + i * 170));
+    return () => temporizadores.forEach(clearTimeout);
+  }, []);
+
   return (
-    <figure className="bc-preview">
-      <svg viewBox="0 0 320 240" role="img" aria-label="Vista aérea de un potrero con bovinos detectados">
-        <rect width="320" height="240" fill="#5f7d3a" />
-        <path d="M0 0h140l-30 90L0 110Z" fill="#6f8d43" />
-        <path d="M140 0h180v70l-120 30-90-10Z" fill="#7d9a4d" />
-        <path d="M0 110l110-20 90 10 120-30v90l-150 20L0 200Z" fill="#688a3f" />
-        <path d="M0 200l170-20 150-10v70H0Z" fill="#577434" />
-        <path d="M140 0l-30 90 90 10 120-30M110 90 0 110M170 180 0 200M170 180l30-80" stroke="#9fc65e" strokeWidth="2" fill="none" opacity="0.6" />
-        {vacas.map(([x, y, rot], i) => (
-          <g key={i} transform={`translate(${x} ${y}) rotate(${rot})`}>
-            <ellipse rx="9" ry="5" fill={i % 3 === 0 ? "#3a2a1f" : i % 3 === 1 ? "#8a5a32" : "#2a2522"} />
-            <ellipse cx="9" rx="3" ry="2.5" fill={i % 3 === 1 ? "#6e4527" : "#1d1815"} />
-            <rect x="-14" y="-10" width="28" height="20" rx="2" fill="none" stroke="#c6f27e" strokeWidth="1.6" />
-          </g>
-        ))}
-      </svg>
-      <figcaption className="bc-preview__count">
+    <figure className="vuelo" aria-label="Ejemplo de detección de bovinos sobre una toma aérea">
+      <div className="vuelo-img">
+        <svg viewBox="0 0 400 300" preserveAspectRatio="none" aria-hidden="true">
+          {CAJAS.map(([x, y], i) => (
+            <rect key={i} className="caja" x={x - 9} y={y - 7} width="18" height="14" rx="3"
+              style={{ animationDelay: `${(0.5 + i * 0.17).toFixed(2)}s` }} />
+          ))}
+        </svg>
+        <div className="barrido" />
+        <span className="vuelo-etq">Vista de ejemplo · toma aérea</span>
+      </div>
+      <div className="contador">
         <span>Bovinos detectados</span>
-        <strong>{total}</strong>
-      </figcaption>
+        <strong aria-live="off">{contados}</strong>
+      </div>
     </figure>
   );
 }
-
-export default DetectionPreview;

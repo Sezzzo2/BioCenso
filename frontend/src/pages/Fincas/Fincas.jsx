@@ -1,143 +1,97 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import Icon from "../../components/ui/Icon.jsx";
-import {
-  ActionButton, AlertMessage, EmptyState, FilterSelect, LoadingState, PageHeader, SearchField, StatCard,
-} from "../../components/ui/SharedUI.jsx";
-import { listarFincas } from "../../services/fincaService.js";
-import { extraerError } from "../../utils/errores.js";
+import { AlertMessage, FilterSelect, LoadingState, SearchField } from "../../components/ui/SharedUI.jsx";
+import { useDatosCuenta } from "../../hooks/useDatosCuenta.js";
+import { esCompletado, fechaDeCenso, signo } from "../../utils/censos.js";
+import { formatFecha } from "../../utils/format.js";
 
 const normalizarTexto = (valor = "") =>
-  String(valor).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("es");
+  String(valor).normalize("NFD").replace(/[̀-ͯ]/g, "").toLocaleLowerCase("es");
 
 export default function Fincas() {
   const location = useLocation();
-  const [fincas, setFincas] = useState([]);
-  const [cargando, setCargando] = useState(true);
-  const [error, setError] = useState("");
+  const { cargando, error, fincas, censos } = useDatosCuenta();
   const [busqueda, setBusqueda] = useState("");
   const [departamento, setDepartamento] = useState("");
 
-  useEffect(() => {
-    let vigente = true;
-    listarFincas()
-      .then((lista) => {
-        if (vigente) setFincas(lista);
-      })
-      .catch((err) => {
-        if (vigente) setError(extraerError(err));
-      })
-      .finally(() => {
-        if (vigente) setCargando(false);
-      });
-    return () => { vigente = false; };
-  }, []);
-
   const departamentos = useMemo(
-    () => [...new Set(fincas.map((f) => f.departamento).filter(Boolean))]
-      .sort((a, b) => a.localeCompare(b, "es")),
+    () => [...new Set(fincas.map((f) => f.departamento).filter(Boolean))].sort((a, b) => a.localeCompare(b, "es")),
     [fincas]
   );
 
   const fincasFiltradas = useMemo(() => {
     const termino = normalizarTexto(busqueda.trim());
-    return fincas.filter((finca) => {
-      const coincideBusqueda = !termino || [
-        finca.nombre, finca.municipio, finca.departamento, finca.direccion,
-      ].some((campo) => normalizarTexto(campo).includes(termino));
-      const coincideDepartamento = !departamento || finca.departamento === departamento;
-      return coincideBusqueda && coincideDepartamento;
-    });
+    return fincas.filter((finca) =>
+      (!termino || [finca.nombre, finca.municipio, finca.departamento, finca.direccion]
+        .some((campo) => normalizarTexto(campo).includes(termino)))
+      && (!departamento || finca.departamento === departamento));
   }, [busqueda, departamento, fincas]);
 
-  const municipios = new Set(fincas.map((f) => f.municipio).filter(Boolean)).size;
-
   return (
-    <div className="bc-farms-page">
-      <PageHeader
-        eyebrow="Administración de propiedades"
-        title="Gestión de fincas"
-        description="Consulta y organiza las fincas asociadas a tu cuenta."
-        action={<Link to="/fincas/nueva" className="bc-btn bc-btn-primary"><Icon name="plus" size={18} /> Registrar finca</Link>}
-      />
+    <>
+      <h1 className="titulo-vista">Fincas</h1>
+      <p className="bajada">Elige una finca para llevar el control de sus bovinos.</p>
 
       {location.state?.mensaje && <AlertMessage type="success">{location.state.mensaje}</AlertMessage>}
       {error && <AlertMessage>{error}</AlertMessage>}
 
-      <section className="bc-farms-summary" aria-label="Resumen de fincas">
-        <StatCard icon="home" label="Fincas registradas" value={cargando ? "—" : fincas.length} />
-        <StatCard icon="mapPin" label="Municipios cubiertos" value={cargando ? "—" : municipios} />
-      </section>
-
-      <section className="bc-farms-list" aria-labelledby="fincas-list-title">
-        <div className="bc-farms-list__heading">
-          <div>
-            <h2 id="fincas-list-title">Tus fincas</h2>
-            {!cargando && !error && (
-              <p>{fincas.length} {fincas.length === 1 ? "propiedad registrada" : "propiedades registradas"}</p>
-            )}
-          </div>
+      {fincas.length > 1 && (
+        <div className="herramientas" style={{ marginTop: 22, maxWidth: 720 }}>
+          <SearchField id="q-finca" label="Buscar finca" placeholder="Buscar por nombre o municipio"
+            value={busqueda} onChange={setBusqueda} />
+          <FilterSelect id="dep-finca" label="Filtrar por departamento" value={departamento} onChange={setDepartamento}
+            options={departamentos} defaultLabel="Todos los departamentos" />
         </div>
+      )}
 
-        <div className="bc-farms-toolbar">
-          <SearchField
-            label="Buscar finca por nombre o ubicación"
-            placeholder="Buscar por finca o ubicación..."
-            value={busqueda}
-            onChange={setBusqueda}
-          />
-          <FilterSelect
-            label="Filtrar por departamento"
-            value={departamento}
-            onChange={setDepartamento}
-            options={departamentos}
-            defaultLabel="Todos los departamentos"
-          />
-        </div>
-
-        {cargando && <LoadingState>Cargando fincas...</LoadingState>}
-        {!cargando && !error && fincas.length === 0 && (
-          <EmptyState
-            title="Aún no tienes fincas"
-            description="Registra tu primera finca para comenzar a organizar bovinos y censos."
-            action={<Link to="/fincas/nueva" className="bc-btn bc-btn-primary">Registrar mi primera finca</Link>}
-          />
-        )}
-
-        {!cargando && !error && fincas.length > 0 && fincasFiltradas.length === 0 && (
-          <EmptyState
-            icon={null}
-            title="No encontramos fincas con esos criterios"
-            description="Prueba con otro nombre, municipio o departamento."
-            action={
-              <ActionButton variant="outline" onClick={() => { setBusqueda(""); setDepartamento(""); }}>
-                Limpiar filtros
-              </ActionButton>
-            }
-          />
-        )}
-
-        {!cargando && !error && fincasFiltradas.length > 0 && (
-          <div className="row g-3">
-            {fincasFiltradas.map((f) => (
-              <div className="col-12 col-md-6 col-xl-4" key={f.id_finca}>
-                <Link to={`/fincas/${f.id_finca}`} className="bc-card bc-finca-card">
-                  <span className="bc-finca-card__icon"><Icon name="mountain" size={21} /></span>
-                  <span className="bc-finca-card__content">
+      {cargando ? <LoadingState>Cargando fincas...</LoadingState> : (
+        <div className="fincas">
+          {fincasFiltradas.map((f) => {
+            const ultimo = censos.find((c) => String(c.id_finca) === String(f.id_finca) && esCompletado(c));
+            const conteo = ultimo?.cantidad_animales ?? null;
+            return (
+              <Link className="finca" to={`/fincas/${f.id_finca}`} key={f.id_finca}>
+                <div className="finca-marco">
+                  <div>
                     <h3>{f.nombre}</h3>
-                    <span className="bc-finca-card__location">
-                      <Icon name="mapPin" size={15} />
-                      {[f.municipio, f.departamento].filter(Boolean).join(", ") || "Ubicación sin registrar"}
-                    </span>
-                    {f.direccion && <span className="bc-finca-card__address">{f.direccion}</span>}
-                  </span>
-                  <span className="bc-finca-card__arrow" aria-hidden="true">→</span>
-                </Link>
+                    <p className="lugar"><Icon name="mapPin" />{[f.municipio, f.departamento].filter(Boolean).join(", ") || "Sin ubicación"}</p>
+                  </div>
+                  <dl className="finca-cifras">
+                    <div><dt>Registrados</dt><dd>{f.registrados}</dd></div>
+                    <div><dt>Último conteo</dt><dd>{conteo ?? "—"}</dd></div>
+                  </dl>
+                  <p className="finca-pie">
+                    {ultimo
+                      ? <>Vuelo del <b>{formatFecha(fechaDeCenso(ultimo))}</b> · diferencia <b>{signo(conteo != null ? conteo - f.registrados : null)}</b></>
+                      : "Sin censos todavía"}
+                  </p>
+                </div>
+              </Link>
+            );
+          })}
+
+          {fincas.length > 0 && fincasFiltradas.length === 0 && (
+            <div className="finca" style={{ cursor: "default" }}>
+              <div className="finca-marco" style={{ justifyContent: "center", textAlign: "center" }}>
+                <strong style={{ color: "var(--crema)" }}>Ninguna finca coincide</strong>
+                <p className="sub">Prueba con otro nombre, municipio o departamento.</p>
+                <button type="button" className="btn-texto" onClick={() => { setBusqueda(""); setDepartamento(""); }}>
+                  Limpiar filtros
+                </button>
               </div>
-            ))}
-          </div>
-        )}
-      </section>
-    </div>
+            </div>
+          )}
+
+          <Link className="finca finca-nueva" to="/fincas/nueva">
+            <div className="finca-marco">
+              <span className="zona-ico"><Icon name="plus" strokeWidth={2.4} /></span>
+              <strong>{fincas.length ? "Agregar finca" : "Registra tu primera finca"}</strong>
+              <p>{fincas.length ? "Registra otra finca para censar sus potreros." : "Con una finca registrada ya puedes subir censos y registrar bovinos."}</p>
+            </div>
+          </Link>
+        </div>
+      )}
+    </>
   );
 }

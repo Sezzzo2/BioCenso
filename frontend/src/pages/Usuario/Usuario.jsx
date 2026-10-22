@@ -1,33 +1,21 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import Icon from "../../components/ui/Icon.jsx";
 import { useAuth } from "../../context/AuthContext.jsx";
-import { AlertMessage } from "../../components/ui/SharedUI.jsx";
+import { AlertMessage, FormField } from "../../components/ui/SharedUI.jsx";
 import { extraerError } from "../../utils/errores.js";
-import "./Usuario.css";
+
+const CORREO = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
 function inicialesDe(usuario) {
-  const nombre = usuario?.nombre || usuario?.correo || "Usuario";
-  return nombre
-    .split(/[ @._-]+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((parte) => parte[0])
-    .join("")
-    .toUpperCase();
-}
-
-function etiquetaRol(rol) {
-  if (rol === "Administrador") return "Administrador";
-  if (rol === "Ganadero") return "Ganadero";
-  return rol || "No disponible";
+  const partes = [usuario?.nombre, usuario?.apellido].filter(Boolean);
+  const texto = partes.length ? partes.map((p) => p[0]).join("") : (usuario?.correo || "U")[0];
+  return texto.slice(0, 2).toUpperCase();
 }
 
 export default function Usuario() {
   const { usuario, actualizarPerfil, cerrarSesion } = useAuth();
   const navigate = useNavigate();
-  const nombre = usuario?.nombre || "Nombre no disponible en la sesión actual";
-  const correo = usuario?.correo || "Correo no disponible";
   const [editando, setEditando] = useState(false);
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState("");
@@ -43,18 +31,30 @@ export default function Usuario() {
     navigate("/", { replace: true });
   };
 
-  const cambiarCampo = (event) => {
-    setFormulario((actual) => ({ ...actual, [event.target.name]: event.target.value }));
+  const cambiarCampo = (event) => setFormulario((actual) => ({ ...actual, [event.target.name]: event.target.value }));
+
+  const empezarEdicion = () => {
+    setFormulario({ nombre: usuario?.nombre ?? "", apellido: usuario?.apellido ?? "", correo: usuario?.correo ?? "" });
+    setMensaje("");
+    setError("");
+    setEditando(true);
   };
 
   const guardarPerfil = async (event) => {
     event.preventDefault();
-    setGuardando(true);
     setError("");
     setMensaje("");
+    const datos = {
+      nombre: formulario.nombre.trim(),
+      apellido: formulario.apellido.trim(),
+      correo: formulario.correo.trim().toLowerCase(),
+    };
+    if (!datos.nombre || !datos.apellido || !datos.correo) return setError("Nombre, apellido y correo son obligatorios.");
+    if (!CORREO.test(datos.correo)) return setError("Ingresa un correo electrónico válido.");
 
+    setGuardando(true);
     try {
-      await actualizarPerfil(formulario);
+      await actualizarPerfil(datos);
       setEditando(false);
       setMensaje("Los datos del perfil se actualizaron correctamente.");
     } catch (err) {
@@ -64,102 +64,76 @@ export default function Usuario() {
     }
   };
 
+  const nombreCompleto = [usuario?.nombre, usuario?.apellido].filter(Boolean).join(" ") || "Usuario";
+
   return (
-    <div className="bc-profile-page">
-      <header className="bc-page-head">
-        <div>
-          <span className="bc-module-eyebrow">Cuenta</span>
-          <h1>Perfil de usuario</h1>
-          <p className="bc-page-description">Consulta la información de tu cuenta y las opciones disponibles.</p>
-        </div>
-      </header>
+    <>
+      <h1 className="titulo-vista">Usuario</h1>
+      <p className="bajada">Consulta la información de tu cuenta y las opciones disponibles.</p>
 
-      <section className="bc-card bc-profile-card" aria-labelledby="perfil-identidad">
-        <div className="bc-profile-identity">
-          <span className="bc-profile-avatar" aria-hidden="true">{inicialesDe(usuario)}</span>
-          <div>
-            <span className="bc-module-eyebrow">Información personal</span>
-            <h2 id="perfil-identidad">{nombre}</h2>
-            <p><Icon name="mail" size={17} /> {correo}</p>
+      <div className="dos-col">
+        <section className="panel panel-solido perfil" style={{ margin: 0, maxWidth: "none" }} aria-labelledby="t-perfil">
+          <div className="perfil-top">
+            <span className="avatar" aria-hidden="true">{inicialesDe(usuario)}</span>
+            <div><h2 id="t-perfil">{nombreCompleto}</h2><p className="texto-suave">{usuario?.correo}</p></div>
           </div>
-        </div>
-        <span className="bc-profile-role">
-          <Icon name="user" size={16} /> {etiquetaRol(usuario?.rol)}
-        </span>
-      </section>
 
-      <div className="bc-profile-grid">
-        <section className="bc-card bc-profile-section" aria-labelledby="perfil-datos-title">
-          <span className="bc-module-eyebrow">Datos de la cuenta</span>
-          <h2 id="perfil-datos-title">{editando ? "Editar información" : "Información registrada"}</h2>
-          {error && <AlertMessage>{error}</AlertMessage>}
-          {mensaje && <AlertMessage type="success">{mensaje}</AlertMessage>}
           {editando ? (
-            <form className="bc-profile-form" onSubmit={guardarPerfil}>
-              <label htmlFor="perfil-nombre">Nombre</label>
-              <input id="perfil-nombre" name="nombre" value={formulario.nombre}
-                onChange={cambiarCampo} maxLength={100} required />
-              <label htmlFor="perfil-apellido">Apellido</label>
-              <input id="perfil-apellido" name="apellido" value={formulario.apellido}
-                onChange={cambiarCampo} maxLength={100} required />
-              <label htmlFor="perfil-correo">Correo electrónico</label>
-              <input id="perfil-correo" name="correo" type="email" value={formulario.correo}
-                onChange={cambiarCampo} required />
-              <div className="bc-profile-form-actions">
-                <button type="submit" className="bc-btn bc-btn-primary" disabled={guardando}>
-                  {guardando ? "Guardando..." : "Guardar cambios"}
-                </button>
-                <button type="button" className="bc-btn bc-btn-outline" disabled={guardando}
-                  onClick={() => { setEditando(false); setError(""); }}>
-                  Cancelar
-                </button>
+            <form className="form" onSubmit={guardarPerfil} noValidate aria-busy={guardando} style={{ marginTop: 22 }}>
+              <div className="rejilla">
+                <FormField id="perfil-nombre" label="Nombre">
+                  <input id="perfil-nombre" name="nombre" className="ctl" autoComplete="given-name" value={formulario.nombre} onChange={cambiarCampo} />
+                </FormField>
+                <FormField id="perfil-apellido" label="Apellido">
+                  <input id="perfil-apellido" name="apellido" className="ctl" autoComplete="family-name" value={formulario.apellido} onChange={cambiarCampo} />
+                </FormField>
+                <FormField id="perfil-correo" label="Correo electrónico" className="ancho">
+                  <input id="perfil-correo" name="correo" type="email" className="ctl" autoComplete="email" value={formulario.correo} onChange={cambiarCampo} />
+                </FormField>
+              </div>
+              {error && <AlertMessage style={{ marginBottom: 14 }}>{error}</AlertMessage>}
+              <div className="form-acciones">
+                <button className="btn btn-brote" type="submit" disabled={guardando}>{guardando ? "Guardando..." : "Guardar cambios"}</button>
+                <button className="btn btn-oscuro" type="button" disabled={guardando} onClick={() => { setEditando(false); setError(""); }}>Cancelar</button>
               </div>
             </form>
           ) : (
             <>
-              <dl className="bc-profile-details">
-                <div><dt>Nombre</dt><dd>{usuario?.nombre || "No disponible en la sesión actual"}</dd></div>
-                <div><dt>Apellido</dt><dd>{usuario?.apellido || "No disponible en la sesión actual"}</dd></div>
-                <div><dt>Correo electrónico</dt><dd>{correo}</dd></div>
-                <div><dt>Rol asignado</dt><dd>{etiquetaRol(usuario?.rol)}</dd></div>
+              <dl>
+                <dt>Nombre</dt><dd>{usuario?.nombre || "—"}</dd>
+                <dt>Apellido</dt><dd>{usuario?.apellido || "—"}</dd>
+                <dt>Correo electrónico</dt><dd>{usuario?.correo || "—"}</dd>
+                <dt>Rol asignado</dt><dd>{usuario?.rol || "No disponible"}</dd>
               </dl>
-              <button type="button" className="bc-btn bc-btn-outline bc-profile-edit"
-                onClick={() => { setEditando(true); setMensaje(""); }}>
-                <Icon name="edit" size={17} /> Editar perfil
+              {mensaje && <AlertMessage type="success">{mensaje}</AlertMessage>}
+              <button className="btn btn-oscuro" style={{ marginTop: 24 }} type="button" onClick={empezarEdicion}>
+                <Icon name="edit" />Editar información
               </button>
             </>
           )}
-          <p className="bc-profile-note">
-            El rol se asigna y valida en el servidor. No es editable desde esta pantalla.
-          </p>
         </section>
 
-        <section className="bc-card bc-profile-section" aria-labelledby="perfil-seguridad-title">
-          <span className="bc-module-eyebrow">Seguridad</span>
-          <h2 id="perfil-seguridad-title">Opciones disponibles</h2>
-          <div className="bc-profile-security">
-            <span className="bc-profile-security__icon"><Icon name="check" size={19} /></span>
-            <div>
-              <strong>Sesión autenticada</strong>
-              <p>BioCenso valida tu sesión mediante un token seguro.</p>
-            </div>
+        <section className="panel panel-solido perfil" style={{ margin: 0, maxWidth: "none" }} aria-labelledby="t-seguridad">
+          <h2 id="t-seguridad">Seguridad</h2>
+          <ul className="lista-enl" style={{ marginTop: 16 }}>
+            <li>
+              <div className="lista-item">
+                <span className="ico"><Icon name="check" /></span>
+                <span><strong>Sesión autenticada</strong><small>BioCenso valida tu sesión con un token seguro que vence a las pocas horas.</small></span>
+              </div>
+            </li>
+            <li>
+              <div className="lista-item">
+                <span className="ico"><Icon name="user" /></span>
+                <span><strong>Cambio de contraseña</strong><small>Esta opción todavía no está disponible en el servicio de cuenta.</small></span>
+              </div>
+            </li>
+          </ul>
+          <div className="form-acciones" style={{ marginTop: 22 }}>
+            <button className="btn btn-brote" type="button" onClick={salir}><Icon name="logout" />Cerrar sesión</button>
           </div>
-          <div className="bc-profile-security">
-            <span className="bc-profile-security__icon"><Icon name="alert" size={19} /></span>
-            <div>
-              <strong>Cambio de contraseña</strong>
-              <p>Esta opción no está disponible todavía en el servicio de cuenta.</p>
-            </div>
-          </div>
-          <button type="button" className="bc-btn bc-btn-outline bc-profile-logout" onClick={salir}>
-            <Icon name="logout" size={18} /> Cerrar sesión
-          </button>
         </section>
       </div>
-
-      <div className="bc-profile-backlink">
-        <Link to="/dashboard">← Volver al panel general</Link>
-      </div>
-    </div>
+    </>
   );
 }

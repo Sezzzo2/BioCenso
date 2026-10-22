@@ -1,20 +1,18 @@
+// El texto exacto del estado lo define el backend; aquí solo se elige el color
 function StatusBadge({ estado }) {
   const texto = String(estado ?? "").trim();
-  const normalizado = texto.toLocaleLowerCase("es");
-  let variante = "neutral";
-  if (normalizado.includes("error") || normalizado.includes("fall")) variante = "danger";
-  else if (normalizado.includes("proces") && !normalizado.includes("procesado")) variante = "warn";
-  else if (normalizado.includes("complet") || normalizado.includes("final")) variante = "ok";
-  const claseVariante = {
-    danger: "bc-badge-err",
-    warn: "bc-badge-wait",
-    ok: "bc-badge-ok",
-  }[variante] ?? "";
-  return (
-    <span className={`bc-badge ${claseVariante}`}>
-      {texto || "Estado no disponible"}
-    </span>
-  );
+  const n = texto.toLocaleLowerCase("es");
+  let clase = "neutro";
+  let etiqueta = texto || "Sin estado";
+  if (n.includes("error") || n.includes("fall")) {
+    clase = "err";
+    etiqueta = "No se pudo procesar";
+  } else if (n.includes("proces") && !n.includes("procesado")) {
+    clase = "espera";
+  } else if (n.includes("complet") || n.includes("final")) {
+    clase = "ok";
+  }
+  return <span className={`estado ${clase}`}>{etiqueta}</span>;
 }
 
 export default StatusBadge;

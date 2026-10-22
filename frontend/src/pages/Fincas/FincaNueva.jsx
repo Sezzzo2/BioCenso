@@ -2,24 +2,28 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { crearFinca } from "../../services/fincaService.js";
 import { extraerError } from "../../utils/errores.js";
-import { FormField } from "../../components/ui/SharedUI.jsx";
+import { AlertMessage, FormField, PageHeader } from "../../components/ui/SharedUI.jsx";
 
 export default function FincaNueva() {
   const navigate = useNavigate();
-  const [form, setForm] = useState({
-    nombre: "", municipio: "", departamento: "", direccion: "",
-  });
+  const [form, setForm] = useState({ nombre: "", municipio: "", departamento: "", direccion: "" });
   const [error, setError] = useState("");
+  const [faltantes, setFaltantes] = useState([]);
   const [enviando, setEnviando] = useState(false);
 
-  const cambiar = (e) => setForm({ ...form, [e.target.name]: e.target.value });
+  const cambiar = (e) => {
+    setForm({ ...form, [e.target.name]: e.target.value });
+    setFaltantes((f) => f.filter((c) => c !== e.target.name));
+  };
 
   const manejarEnvio = async (e) => {
     e.preventDefault();
     setError("");
-
-    if (!form.nombre.trim() || !form.municipio.trim() || !form.departamento.trim()) {
+    const vacios = ["nombre", "municipio", "departamento"].filter((c) => !form[c].trim());
+    setFaltantes(vacios);
+    if (vacios.length) {
       setError("Nombre, municipio y departamento son obligatorios.");
+      document.getElementById(vacios[0])?.focus();
       return;
     }
 
@@ -45,52 +49,40 @@ export default function FincaNueva() {
     }
   };
 
+  const campo = (name, label, props = {}) => (
+    <FormField id={name} label={label} required={props.required} className={props.className}>
+      <input id={name} name={name} className="ctl" value={form[name]} onChange={cambiar}
+        placeholder={props.placeholder} autoComplete={props.autoComplete} maxLength={props.maxLength}
+        aria-invalid={faltantes.includes(name)} />
+    </FormField>
+  );
+
   return (
     <>
-      <Link to="/fincas" className="bc-back">← Volver a mis fincas</Link>
-      <div className="bc-page-head mt-3">
-        <div>
-          <span className="bc-module-eyebrow">Gestión de fincas</span>
-          <h1>Registrar finca</h1>
-          <p className="bc-page-description">Ingresa los datos básicos de la propiedad ganadera.</p>
-        </div>
-      </div>
-
-      <form className="bc-card bc-form-narrow" onSubmit={manejarEnvio} noValidate>
-        {error && <div className="bc-alert-error" role="alert">{error}</div>}
-
-        <section className="bc-form-section" aria-labelledby="finca-identificacion-title">
-          <h2 id="finca-identificacion-title">Identificación</h2>
+      <PageHeader
+        migas={[{ texto: "Fincas", ruta: "/fincas" }, { texto: "Registrar finca" }]}
+        title="Registrar finca"
+        description="Ingresa los datos básicos de la propiedad ganadera."
+      />
+      <form className="panel panel-solido panel-pad bloque form" onSubmit={manejarEnvio} noValidate aria-busy={enviando}>
+        <fieldset>
+          <legend>Identificación</legend>
           <p>El nombre permite reconocer esta propiedad en tus registros.</p>
-          <FormField id="nombre" label="Nombre de la finca" required>
-            <input id="nombre" name="nombre" className="bc-input" placeholder="Ej. La Vitrina"
-                   autoComplete="organization" value={form.nombre} onChange={cambiar} required />
-          </FormField>
-        </section>
-        <section className="bc-form-section" aria-labelledby="finca-ubicacion-title">
-          <h2 id="finca-ubicacion-title">Ubicación</h2>
+          {campo("nombre", "Nombre de la finca", { required: true, placeholder: "Ej.: La Vitrina", autoComplete: "organization", maxLength: 150 })}
+        </fieldset>
+        <fieldset>
+          <legend>Ubicación</legend>
           <p>La ubicación ayuda a diferenciar y encontrar tus propiedades.</p>
-          <div className="row g-3">
-            <FormField id="municipio" label="Municipio" required className="col-12 col-sm-6">
-              <input id="municipio" name="municipio" className="bc-input" placeholder="Ej. Villavicencio"
-                     autoComplete="address-level2" value={form.municipio} onChange={cambiar} required />
-            </FormField>
-            <FormField id="departamento" label="Departamento" required className="col-12 col-sm-6">
-              <input id="departamento" name="departamento" className="bc-input" placeholder="Ej. Meta"
-                     autoComplete="address-level1" value={form.departamento} onChange={cambiar} required />
-            </FormField>
+          <div className="rejilla">
+            {campo("municipio", "Municipio", { required: true, placeholder: "Ej.: Villavicencio", autoComplete: "address-level2", maxLength: 100 })}
+            {campo("departamento", "Departamento", { required: true, placeholder: "Ej.: Meta", autoComplete: "address-level1", maxLength: 100 })}
+            {campo("direccion", "Dirección o vereda (opcional)", { className: "ancho", placeholder: "Ej.: Vereda El Hachón", autoComplete: "street-address", maxLength: 200 })}
           </div>
-          <FormField id="direccion" label="Dirección o vereda" hint="Opcional">
-            <input id="direccion" name="direccion" className="bc-input" placeholder="Ej. Vereda El Hachón"
-                   autoComplete="street-address" value={form.direccion} onChange={cambiar} />
-          </FormField>
-        </section>
-
-        <div className="bc-form-actions">
-          <button type="submit" className="bc-btn bc-btn-primary" disabled={enviando}>
-            {enviando ? "Guardando..." : "Guardar finca"}
-          </button>
-          <Link to="/fincas" className="bc-btn bc-btn-outline">Cancelar</Link>
+        </fieldset>
+        {error && <AlertMessage style={{ marginBottom: 16 }}>{error}</AlertMessage>}
+        <div className="form-acciones">
+          <button type="submit" className="btn btn-brote" disabled={enviando}>{enviando ? "Guardando..." : "Guardar finca"}</button>
+          <Link to="/fincas" className="btn btn-oscuro">Cancelar</Link>
         </div>
       </form>
     </>

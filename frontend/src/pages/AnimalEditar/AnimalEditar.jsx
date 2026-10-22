@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import AnimalForm from "../../components/animales/AnimalForm.jsx";
+import { AlertMessage, LoadingState, PageHeader } from "../../components/ui/SharedUI.jsx";
 import { actualizarAnimal, obtenerAnimal } from "../../services/animalesService.js";
 import { extraerError } from "../../utils/errores.js";
-import "../../components/animales/animales.css";
 
 export default function AnimalEditar() {
   const { id, idAnimal } = useParams();
@@ -15,9 +15,7 @@ export default function AnimalEditar() {
   useEffect(() => {
     obtenerAnimal(idAnimal)
       .then(setAnimal)
-      .catch((err) => {
-        setError(err.response?.status === 404 ? "Animal no encontrado." : extraerError(err));
-      })
+      .catch((err) => setError(err.response?.status === 404 ? "Bovino no encontrado." : extraerError(err)))
       .finally(() => setCargando(false));
   }, [idAnimal]);
 
@@ -29,22 +27,23 @@ export default function AnimalEditar() {
   const volver = `/fincas/${id}/animales/${idAnimal}`;
 
   return (
-    <div className="bc-livestock-page">
-      <Link to={volver} className="bc-back">← Volver al animal</Link>
-      <div className="bc-page-head"><div><h1>Editar animal</h1><p className="bc-animal-section-subtitle">Actualiza la información de la ficha del bovino.</p></div></div>
-
-      {cargando && <p className="bc-empty">Cargando animal...</p>}
-      {error && <div className="bc-alert-error" role="alert">{error}</div>}
-
+    <>
+      <PageHeader
+        migas={[
+          { texto: "Fincas", ruta: "/fincas" },
+          { texto: "Finca", ruta: `/fincas/${id}` },
+          { texto: animal?.numero_animal || "Bovino", ruta: volver },
+          { texto: "Editar" },
+        ]}
+        title={animal ? `Editar bovino ${animal.numero_animal}` : "Editar bovino"}
+        description="Actualiza la información de la ficha del bovino."
+      />
+      {cargando && <LoadingState>Cargando bovino...</LoadingState>}
+      {error && <AlertMessage>{error}</AlertMessage>}
       {animal && (
-        <AnimalForm
-          inicial={animal}
-          imagenActual={animal.imagen_url}
-          textoBoton="Guardar cambios"
-          cancelarA={volver}
-          onSubmit={guardar}
-        />
+        <AnimalForm inicial={animal} imagenActual={animal.imagen_url} textoBoton="Guardar cambios"
+          cancelarA={volver} onSubmit={guardar} />
       )}
-    </div>
+    </>
   );
 }

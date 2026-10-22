@@ -117,6 +117,38 @@ const paths = {
       <path d="m15 5 4 4M4 20l4-.8L19 8a2.1 2.1 0 0 0-3-3L5 16l-1 4Z" />
     </>
   ),
+  escaner: (
+    <>
+      <path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3" />
+      <rect x="7.5" y="8" width="9" height="8" rx="1" />
+      <path d="M3 12h18" />
+    </>
+  ),
+  chevronDown: <path d="m6 9 6 6 6-6" />,
+  arrowUp: <path d="M12 20V5M5.5 11.5 12 5l6.5 6.5" />,
+  altura: <path d="M12 3v18M8 7l4-4 4 4M8 17l4 4 4-4" />,
+  recorrido: <path d="M5 4v16M12 4v16M19 4v16M5 20c0-2 7-2 7 0M12 4c0-2 7-2 7 0" />,
+  video: (
+    <>
+      <rect x="3" y="6" width="13" height="12" rx="2" />
+      <path d="m16 10 5-3v10l-5-3" />
+    </>
+  ),
+  archivo: (
+    <>
+      <path d="M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8Z" />
+      <path d="M14 3v5h5M10 12.5v5l4-2.5Z" />
+    </>
+  ),
+  barras: <path d="M4 20V10M10 20V4M16 20v-7M22 20H2" />,
+  vaca: (
+    <>
+      <path d="M5 6 3 4M19 6l2-2" />
+      <path d="M7 7h10a2 2 0 0 1 2 2v3a7 7 0 0 1-14 0V9a2 2 0 0 1 2-2Z" />
+      <ellipse cx="12" cy="16" rx="3.5" ry="2.5" />
+      <path d="M9 11h.01M15 11h.01" />
+    </>
+  ),
 };
 
 function Icon({ name, size = 20, strokeWidth = 1.8, className }) {

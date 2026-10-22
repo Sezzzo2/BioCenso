@@ -1,108 +1,59 @@
-import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { extraerError } from "../../utils/errores.js";
-import { listarCensosDeFinca } from "../../services/censoService.js";
+import { fechaDeCenso } from "../../utils/censos.js";
+import { formatFecha } from "../../utils/format.js";
+import Icon from "../ui/Icon.jsx";
 import StatusBadge from "../ui/StatusBadge.jsx";
-import { AlertMessage, EmptyState, LoadingState, TableContainer } from "../ui/SharedUI.jsx";
+import { ButtonLink, EmptyState } from "../ui/SharedUI.jsx";
 
-const fechaHora = (v) =>
-  v ? new Date(v).toLocaleString("es-CO", { dateStyle: "medium", timeStyle: "short" }) : "—";
-
-export default function CensosDeFinca({ idFinca }) {
-  const [resultado, setResultado] = useState({ idFinca: null, censos: [], error: "" });
-  const cargando = String(resultado.idFinca) !== String(idFinca);
-  const censos = cargando ? [] : resultado.censos;
-  const error = cargando ? "" : resultado.error;
-
-  useEffect(() => {
-    let vigente = true;
-    listarCensosDeFinca(idFinca)
-      .then((lista) => {
-        if (!vigente) return;
-        setResultado({
-          idFinca,
-          censos: [...lista].sort(
-            (a, b) => new Date(b.fecha_procesamiento) - new Date(a.fecha_procesamiento)
-          ),
-          error: "",
-        });
-      })
-      .catch((err) => {
-        if (vigente) setResultado({ idFinca, censos: [], error: extraerError(err) });
-      });
-    return () => { vigente = false; };
-  }, [idFinca]);
-
+// Tabla de censos de una finca (los datos los carga la página)
+export default function CensosDeFinca({ idFinca, censos }) {
   return (
-    <>
-      <div className="bc-section-head">
+    <section className="panel panel-solido panel-pad bloque" aria-labelledby="t-censos-finca">
+      <div className="bloque-cab">
         <div>
-          <span className="bc-module-eyebrow">Historial de la propiedad</span>
-          <h2>Censos {!cargando && !error && `(${censos.length})`}</h2>
-          <p className="bc-section-description">Consulta la fecha, el estado y los resultados de cada censo.</p>
+          <h2 id="t-censos-finca">Censos ({censos.length})</h2>
+          <p>Fecha, estado y resultados de cada censo de esta finca.</p>
         </div>
-        <Link to={`/censos/nuevo?finca=${idFinca}`} className="bc-btn bc-btn-primary">
-          Registrar censo
-        </Link>
+        <ButtonLink to={`/censos?finca=${idFinca}`} variant="light" size="small"><Icon name="plus" />Nuevo censo</ButtonLink>
       </div>
 
-      {cargando && <LoadingState>Cargando censos...</LoadingState>}
-      {error && <AlertMessage>{error}</AlertMessage>}
-
-      {!cargando && !error && censos.length === 0 && (
+      {censos.length === 0 ? (
         <EmptyState
           title="Esta finca aún no tiene censos"
-          description="Carga una imagen o video para iniciar el primer censo."
-          icon="calendar"
+          description="Sube un video del dron para iniciar el primer censo."
+          action={<ButtonLink to={`/censos?finca=${idFinca}`}>Subir video</ButtonLink>}
         />
-      )}
-
-      {censos.length > 0 && (
-        <div className="bc-card bc-census-table-card">
-          <TableContainer>
-            <table className="bc-table">
-              <caption className="visually-hidden">Censos registrados para esta finca</caption>
-              <thead>
-                <tr>
-                  <th>Censo</th>
-                  <th>Fecha</th>
-                  <th>Estado</th>
-                  <th>Reses</th>
-                  <th>Peso prom.</th>
-                  <th>Peso total</th>
-                  <th>Conteo manual</th>
-                  <th>Nota</th>
-                </tr>
-              </thead>
-              <tbody>
-                {censos.map((c) => {
-                  const pesoTotal =
-                    c.peso_total_estimado ??
-                    (c.cantidad_animales != null && c.peso_estimado != null
-                      ? Math.round(c.cantidad_animales * c.peso_estimado * 10) / 10
-                      : null);
-                  return (
-                    <tr key={c.id_censo}>
-                      <td><strong>#{c.id_censo}</strong></td>
-                      <td>
-                        <Link to={`/fincas/${idFinca}/censos/${c.id_censo}`} className="bc-rowlink">
-                          {fechaHora(c.fecha_procesamiento)}
-                        </Link>
-                      </td>
-                      <td><StatusBadge estado={c.estado} /></td>
-                      <td><strong>{c.cantidad_animales ?? "—"}</strong></td>
-                      <td>{c.peso_estimado != null ? `${c.peso_estimado} kg` : "—"}</td>
-                      <td>{pesoTotal != null ? `${pesoTotal.toLocaleString("es-CO")} kg` : "—"}</td>
-                      <td>{c.conteo_manual ?? "—"}</td>
-                      <td className="bc-note-cell" title={c.nota || ""}>{c.nota || "—"}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </TableContainer>
+      ) : (
+        <div className="tabla-caja">
+          <table>
+            <caption className="sr">Censos registrados para esta finca</caption>
+            <thead>
+              <tr>
+                <th>Censo</th><th>Fecha del vuelo</th><th>Estado</th><th className="num">Reses</th>
+                <th className="num">Peso prom.</th><th className="num">Peso total</th><th className="num">Conteo manual</th><th>Nota</th>
+              </tr>
+            </thead>
+            <tbody>
+              {censos.map((c) => {
+                const pesoTotal = c.cantidad_animales != null && c.peso_estimado != null
+                  ? Math.round(c.cantidad_animales * c.peso_estimado) : null;
+                return (
+                  <tr key={c.id_censo}>
+                    <td><Link className="fila-link" to={`/fincas/${idFinca}/censos/${c.id_censo}`}>n.º {c.id_censo}</Link></td>
+                    <td>{formatFecha(fechaDeCenso(c))}</td>
+                    <td><StatusBadge estado={c.estado} /></td>
+                    <td className="num">{c.cantidad_animales ?? "—"}</td>
+                    <td className="num">{c.peso_estimado != null ? `${c.peso_estimado} kg` : "—"}</td>
+                    <td className="num">{pesoTotal != null ? `${pesoTotal.toLocaleString("es-CO")} kg` : "—"}</td>
+                    <td className="num">{c.conteo_manual ?? "—"}</td>
+                    <td className="nota-celda" title={c.nota || ""}>{c.nota || "—"}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       )}
-    </>
+    </section>
   );
 }

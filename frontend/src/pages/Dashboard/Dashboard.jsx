@@ -1,210 +1,115 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import {
-  CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis,
-} from "recharts";
-import { obtenerEvolucion, obtenerResumen } from "../../services/dashboardService.js";
-import { fechaHora } from "../../utils/censos.js";
+import { obtenerResumen } from "../../services/dashboardService.js";
+import { obtenerFinca } from "../../services/fincaService.js";
+import { listarCensosDeFinca } from "../../services/censoService.js";
 import { extraerError } from "../../utils/errores.js";
-import { StatCard } from "../../components/ui/SharedUI.jsx";
-
-const COLOR_IA = "#245c3a";
-const COLOR_MANUAL = "#d89b24";
-const EVOLUCION_VACIA = [];
-
-const etiquetaCorta = (v) =>
-  new Date(v).toLocaleString("es-CO", {
-    day: "numeric", month: "short", hour: "numeric", minute: "2-digit",
-  });
+import { esCompletado, fechaDeCenso, ordenarCensos, signo } from "../../utils/censos.js";
+import { formatFecha } from "../../utils/format.js";
+import { ButtonLink, LoadingState, PageHeader, StatCard } from "../../components/ui/SharedUI.jsx";
+import GraficoEvolucion, { COLOR_IA, COLOR_MANUAL } from "../../components/censos/GraficoEvolucion.jsx";
 
 function formatearTiempo(s) {
   if (s == null) return "—";
   return Number(s) < 1 ? "menos de 1 s" : `${Number(s).toFixed(1)} s`;
 }
 
-function Tarjeta({ etiqueta, valor, unidad, pista, verde }) {
-  return (
-    <StatCard
-      label={etiqueta}
-      value={valor}
-      unit={unidad}
-      description={pista}
-      tone={verde ? "accent" : ""}
-    />
-  );
-}
-
 export default function Dashboard() {
   const { id } = useParams();
-  const [resultado, setResultado] = useState({
-    id: null, resumen: null, evolucion: [], error: "",
-  });
-  const cargando = String(resultado.id) !== String(id);
-  const resumen = cargando ? null : resultado.resumen;
-  const evolucion = cargando ? EVOLUCION_VACIA : resultado.evolucion;
-  const error = cargando ? "" : resultado.error;
+  const [datos, setDatos] = useState({ id: null, finca: null, resumen: null, censos: [], error: "" });
+  const cargando = String(datos.id) !== String(id);
 
   useEffect(() => {
     let vigente = true;
-    Promise.all([obtenerResumen(id), obtenerEvolucion(id)])
-      .then(([r, e]) => {
-        if (vigente) setResultado({ id, resumen: r, evolucion: e, error: "" });
+    Promise.all([obtenerFinca(id), obtenerResumen(id), listarCensosDeFinca(id)])
+      .then(([finca, resumen, censos]) => {
+        if (vigente) setDatos({ id, finca, resumen, censos, error: "" });
       })
       .catch((err) => {
         if (vigente) {
-          setResultado({
-            id,
-            resumen: null,
-            evolucion: [],
-            error: err.response?.status === 404 ? "Finca no encontrada." : extraerError(err),
-          });
+          setDatos({ id, finca: null, resumen: null, censos: [],
+            error: err.response?.status === 404 ? "Finca no encontrada." : extraerError(err) });
         }
       });
     return () => { vigente = false; };
   }, [id]);
 
-  // Orden cronológico y etiqueta para el eje X
-  const datos = useMemo(
-    () =>
-      [...evolucion]
-        .sort((a, b) => new Date(a.fecha_procesamiento) - new Date(b.fecha_procesamiento))
-        .map((p) => ({
-          ...p,
-          etiqueta: etiquetaCorta(p.fecha_procesamiento),
-          fechaCompleta: fechaHora(p.fecha_procesamiento),
-        })),
-    [evolucion]
+  // Del más antiguo al más reciente para el gráfico
+  const puntos = useMemo(
+    () => ordenarCensos(datos.censos.filter(esCompletado)).reverse()
+      .map((c) => ({ id: c.id_censo, fecha: fechaDeCenso(c), ia: c.cantidad_animales, manual: c.conteo_manual })),
+    [datos.censos]
   );
 
-  const diferencia = resumen?.diferencia_ultimo_censo;
-  const hayCensos = (resumen?.numero_censos ?? 0) > 0;
-  const pesoTotalUltimo =
-    resumen?.peso_total_estimado_ultimo_censo ??
-    (resumen?.cantidad_detectada_ultimo_censo != null && resumen?.peso_estimado_ultimo_censo != null
-      ? Math.round(resumen.cantidad_detectada_ultimo_censo * resumen.peso_estimado_ultimo_censo * 10) / 10
-      : null);
+  if (cargando) return <LoadingState>Cargando panel...</LoadingState>;
+  if (datos.error) {
+    return (
+      <div className="panel panel-solido vacio-bloque" style={{ marginTop: 40 }}>
+        <h3>{datos.error}</h3>
+        <ButtonLink to="/fincas">Volver a mis fincas</ButtonLink>
+      </div>
+    );
+  }
+
+  const { finca, resumen } = datos;
+  const ultimo = ordenarCensos(datos.censos.filter(esCompletado))[0];
+  const ia = ultimo?.cantidad_animales ?? null;
+  const manual = ultimo?.conteo_manual ?? null;
+  const pesoTotal = ia != null && ultimo?.peso_estimado != null ? Math.round(ia * ultimo.peso_estimado) : null;
 
   return (
     <>
-      <Link to={`/fincas/${id}`} className="bc-back">← Volver a la finca</Link>
-      <div className="bc-page-head mt-3"><h1>Panel de la finca</h1></div>
+      <PageHeader
+        migas={[{ texto: "Fincas", ruta: "/fincas" }, { texto: finca.nombre, ruta: `/fincas/${id}` }, { texto: "Panel" }]}
+        title={`Panel de ${finca.nombre}`}
+        description="Resumen y evolución de los censos de la finca."
+        action={<ButtonLink to={`/fincas/${id}`} variant="outline">Ver finca y bovinos</ButtonLink>}
+      />
 
-      {cargando && <p className="bc-empty">Cargando panel...</p>}
-      {error && <div className="bc-alert-error" role="alert">{error}</div>}
+      <section className="panel panel-pad bloque">
+        <div className="cifras">
+          <StatCard label="Animales registrados" value={resumen?.total_bovinos_registrados ?? 0} />
+          <StatCard label="Censos realizados" value={datos.censos.length} description={`${puntos.length} completados`} />
+          <StatCard label="Tiempo promedio de análisis" value={formatearTiempo(resumen?.tiempo_promedio_procesamiento)} />
+        </div>
+      </section>
 
-      {resumen && (
+      {ultimo ? (
         <>
-          {/* Resumen general */}
-          <div className="row g-3 mb-3">
-            <div className="col-6 col-lg-4">
-              <Tarjeta etiqueta="Animales registrados" valor={resumen.total_bovinos_registrados ?? 0} />
+          <section className="panel panel-pad bloque" aria-labelledby="t-ult">
+            <div className="bloque-cab">
+              <h2 id="t-ult">Último censo</h2>
+              <ButtonLink to={`/fincas/${id}/censos/${ultimo.id_censo}`} variant="outline" size="small">Ver detalle</ButtonLink>
             </div>
-            <div className="col-6 col-lg-4">
-              <Tarjeta etiqueta="Censos realizados" valor={resumen.numero_censos ?? 0} />
+            <div className="cifras">
+              <StatCard label="Conteo de la IA" value={ia ?? "—"} unit="animales" description={`Vuelo del ${formatFecha(fechaDeCenso(ultimo))}`} />
+              <StatCard label="Peso total estimado" value={pesoTotal != null ? pesoTotal.toLocaleString("es-CO") : "—"} unit="kg"
+                description={ultimo.peso_estimado != null ? `${ultimo.peso_estimado} kg por res en promedio` : null} />
+              <StatCard label="Conteo manual" value={manual ?? "—"} unit={manual != null ? "animales" : undefined}
+                description={manual == null ? "Sin registrar" : null} />
+              <StatCard label="Diferencia (IA − manual)" value={signo(ia != null && manual != null ? ia - manual : null)} />
             </div>
-            <div className="col-12 col-lg-4">
-              <Tarjeta
-                etiqueta="Tiempo promedio de análisis"
-                valor={formatearTiempo(resumen.tiempo_promedio_procesamiento)}
-              />
-            </div>
-          </div>
+          </section>
 
-          {/* Último censo */}
-          {hayCensos ? (
-            <>
-              <div className="bc-section-head" style={{ marginTop: "1.5rem" }}>
-                <h2>Último censo</h2>
-                {resumen.id_ultimo_censo && (
-                  <Link
-                    to={`/fincas/${id}/censos/${resumen.id_ultimo_censo}`}
-                    className="bc-btn bc-btn-outline bc-btn-sm"
-                  >
-                    Ver detalle
-                  </Link>
-                )}
-              </div>
-              <div className="row g-3 mb-4">
-                <div className="col-6 col-lg-3">
-                  <Tarjeta
-                    etiqueta="Conteo de la IA" verde unidad="animales"
-                    valor={resumen.cantidad_detectada_ultimo_censo ?? "—"}
-                    pista={resumen.fecha_ultimo_censo ? fechaHora(resumen.fecha_ultimo_censo) : null}
-                  />
-                </div>
-                <div className="col-6 col-lg-3">
-                  <Tarjeta
-                    etiqueta="Peso total estimado" verde unidad="kg"
-                    valor={pesoTotalUltimo != null ? pesoTotalUltimo.toLocaleString("es-CO") : "—"}
-                    pista={resumen.peso_estimado_ultimo_censo != null ? `${resumen.peso_estimado_ultimo_censo} kg/res prom.` : null}
-                  />
-                </div>
-                <div className="col-6 col-lg-3">
-                  <Tarjeta
-                    etiqueta="Conteo manual" unidad="animales"
-                    valor={resumen.conteo_manual_ultimo_censo ?? "—"}
-                    pista={resumen.conteo_manual_ultimo_censo == null ? "Sin registrar" : null}
-                  />
-                </div>
-                <div className="col-6 col-lg-3">
-                  <Tarjeta
-                    etiqueta="Diferencia (IA − manual)"
-                    valor={diferencia == null ? "—" : diferencia > 0 ? `+${diferencia}` : diferencia}
-                  />
-                </div>
-              </div>
-            </>
-          ) : (
-            <div className="bc-card bc-empty mb-4">
-              <h2>Aún no hay censos en esta finca</h2>
-              <p>Sube un video del dron para ver aquí la evolución del conteo.</p>
-              <Link to={`/censos/nuevo?finca=${id}`} className="bc-btn bc-btn-primary">
-                Nuevo censo
-              </Link>
+          <section className="panel panel-solido panel-pad bloque" aria-labelledby="t-evo">
+            <h2 id="t-evo">Evolución del conteo</h2>
+            <p className="sub">Conteo de la IA frente al conteo manual en cada censo. Los censos sin conteo manual solo muestran el punto de la IA.</p>
+            <div className="leyenda" aria-hidden="true">
+              <span><i style={{ background: COLOR_IA }} />Conteo de la IA</span>
+              <span><i style={{ background: COLOR_MANUAL }} />Conteo manual</span>
             </div>
-          )}
-
-          {/* Evolución */}
-          {datos.length > 0 && (
-            <div className="bc-card bc-chart-card">
-              <h2>Evolución del conteo</h2>
-              <p className="bc-sub">
-                Conteo de la IA frente al conteo manual en cada censo. Los censos sin conteo
-                manual solo muestran el punto de la IA.
-              </p>
-              <div className="bc-chart-box">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={datos} margin={{ top: 10, right: 20, bottom: 0, left: 0 }}>
-                    <CartesianGrid stroke="#e4e9e4" strokeDasharray="3 3" />
-                    <XAxis dataKey="etiqueta" stroke="#667085" tick={{ fontSize: 12 }} />
-                    <YAxis stroke="#667085" tick={{ fontSize: 12 }} allowDecimals={false} />
-                    <Tooltip
-                      contentStyle={{
-                        background: "#ffffff", border: "1px solid #e4e9e4",
-                        borderRadius: 12, color: "#344054",
-                      }}
-                      labelFormatter={(_, payload) =>
-                        payload?.[0]?.payload
-                          ? `Censo n.º ${payload[0].payload.id_censo} · ${payload[0].payload.fechaCompleta}`
-                          : ""
-                      }
-                    />
-                    <Legend />
-                    <Line
-                      type="monotone" dataKey="cantidad_animales" name="Conteo de la IA"
-                      stroke={COLOR_IA} strokeWidth={2.5} dot={{ r: 4 }} activeDot={{ r: 6 }}
-                    />
-                    <Line
-                      type="monotone" dataKey="conteo_manual" name="Conteo manual"
-                      stroke={COLOR_MANUAL} strokeWidth={2.5} dot={{ r: 4 }} activeDot={{ r: 6 }}
-                      connectNulls={false}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-          )}
+            <GraficoEvolucion puntos={puntos} />
+            <p className="pista" style={{ marginTop: 10 }}>
+              Los mismos datos están en la tabla de censos de la <Link className="enlace" to={`/fincas/${id}`}>ficha de la finca</Link>.
+            </p>
+          </section>
         </>
+      ) : (
+        <div className="panel panel-solido bloque vacio-bloque">
+          <h3>Aún no hay censos completados en esta finca</h3>
+          <p>Sube un video del dron para ver aquí la evolución del conteo.</p>
+          <ButtonLink to={`/censos?finca=${id}`}>Nuevo censo</ButtonLink>
+        </div>
       )}
     </>
   );

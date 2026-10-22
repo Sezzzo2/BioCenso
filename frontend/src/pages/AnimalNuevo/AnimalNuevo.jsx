@@ -1,7 +1,7 @@
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import AnimalForm from "../../components/animales/AnimalForm.jsx";
+import { PageHeader } from "../../components/ui/SharedUI.jsx";
 import { crearAnimal } from "../../services/animalesService.js";
-import "../../components/animales/animales.css";
 
 export default function AnimalNuevo() {
   const { id } = useParams(); // id de la finca
@@ -9,17 +9,17 @@ export default function AnimalNuevo() {
 
   const guardar = async (form, imagen) => {
     const animal = await crearAnimal(id, form, imagen);
-    navigate(
-      animal?.id_animal ? `/fincas/${id}/animales/${animal.id_animal}` : `/fincas/${id}`,
-      { replace: true }
-    );
+    navigate(animal?.id_animal ? `/fincas/${id}/animales/${animal.id_animal}` : `/fincas/${id}`, { replace: true });
   };
 
   return (
-    <div className="bc-livestock-page">
-      <Link to={`/fincas/${id}`} className="bc-back">← Volver a la finca</Link>
-      <div className="bc-page-head"><div><h1>Registrar animal</h1><p className="bc-animal-section-subtitle">Añade un bovino al inventario de esta finca.</p></div></div>
-      <AnimalForm textoBoton="Guardar animal" cancelarA={`/fincas/${id}`} onSubmit={guardar} />
-    </div>
+    <>
+      <PageHeader
+        migas={[{ texto: "Fincas", ruta: "/fincas" }, { texto: "Finca", ruta: `/fincas/${id}` }, { texto: "Registrar bovino" }]}
+        title="Registrar bovino"
+        description="Completa los datos principales. Los campos opcionales puedes agregarlos ahora o más adelante."
+      />
+      <AnimalForm textoBoton="Registrar bovino" cancelarA={`/fincas/${id}`} onSubmit={guardar} />
+    </>
   );
 }

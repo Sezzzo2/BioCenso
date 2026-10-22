@@ -1,14 +1,31 @@
+import { Link } from "react-router-dom";
 import Icon from "./Icon.jsx";
 
-export function PageHeader({ eyebrow, title, description, action, className = "" }) {
+// Ruta de navegación: [{ texto, ruta? }]; el último elemento es la página actual.
+export function Migas({ items }) {
   return (
-    <header className={`bc-page-head bc-shared-page-head ${className}`.trim()}>
-      <div>
-        {eyebrow && <span className="bc-module-eyebrow">{eyebrow}</span>}
-        <h1>{title}</h1>
-        {description && <p className="bc-page-description">{description}</p>}
+    <nav className="migas" aria-label="Ruta de navegación">
+      {items.map((item, i) => (
+        <span key={`${item.texto}-${i}`} style={{ display: "contents" }}>
+          {i > 0 && <span aria-hidden="true">/</span>}
+          {item.ruta ? <Link to={item.ruta}>{item.texto}</Link> : <span aria-current="page">{item.texto}</span>}
+        </span>
+      ))}
+    </nav>
+  );
+}
+
+export function PageHeader({ title, description, action, migas }) {
+  return (
+    <header>
+      {migas && <Migas items={migas} />}
+      <div className="cab-vista">
+        <div>
+          <h1 className="titulo-vista">{title}</h1>
+          {description && <p className="bajada">{description}</p>}
+        </div>
+        {action && <div className="acciones">{action}</div>}
       </div>
-      {action}
     </header>
   );
 }
@@ -20,111 +37,118 @@ export function FormField({ id, label, required = false, hint, error, className 
   ].filter(Boolean).join(" ") || undefined;
 
   return (
-    <div className={`bc-field ${className}`.trim()}>
+    <div className={`campo ${className}`.trim()}>
       <label htmlFor={id}>
-        {label}{required && <> <span className="bc-required-mark" aria-hidden="true">*</span></>}
+        {label}{required && <span className="req" aria-hidden="true">*</span>}
       </label>
       {typeof children === "function" ? children({ describedBy, error: Boolean(error) }) : children}
-      {hint && <p id={`${id}-hint`} className="bc-field-hint">{hint}</p>}
-      {error && <p id={`${id}-error`} className="bc-field-error">{error}</p>}
+      {hint && <p id={`${id}-hint`} className="pista">{hint}</p>}
+      {error && <p id={`${id}-error`} className="err-campo">{error}</p>}
     </div>
   );
 }
 
-export function StatCard({ icon, label, value, description, unit, tone = "" }) {
+export function SelectField({ id, value, onChange, children, ...props }) {
   return (
-    <article className={`bc-shared-stat ${tone ? `bc-shared-stat--${tone}` : ""}`.trim()}>
-      {icon && <span className="bc-shared-stat__icon"><Icon name={icon} size={21} /></span>}
-      <div className="bc-shared-stat__body">
-        <span>{label}</span>
-        <strong>{value ?? "—"}{unit && value != null && value !== "—" && <small>{unit}</small>}</strong>
-        {description && <small>{description}</small>}
-      </div>
-    </article>
+    <div className="sel">
+      <select id={id} className="ctl" value={value} onChange={onChange} {...props}>{children}</select>
+      <Icon name="chevronDown" />
+    </div>
+  );
+}
+
+export function StatCard({ label, value, description, unit }) {
+  // Los valores de texto ("No calculable", "3.1 s") van en un tamaño menor que las cifras
+  const texto = typeof value === "string" && /[a-záéíóú]/i.test(value) && !unit;
+  return (
+    <dl className="cifra">
+      <dt>{label}</dt>
+      <dd className={texto ? "texto" : undefined}>
+        {value ?? "—"}
+        {unit && value != null && value !== "—" && <small>{unit}</small>}
+      </dd>
+      {description && <p>{description}</p>}
+    </dl>
   );
 }
 
 export function AlertMessage({ type = "error", children, className = "", ...props }) {
-  const roles = { error: "alert", success: "status", warning: "status", info: "status" };
+  const clases = { error: "alerta-error", success: "alerta-ok", warning: "alerta-aviso", info: "alerta-aviso" };
   return (
-    <div
-      className={`bc-alert bc-alert--${type} ${className}`.trim()}
-      role={roles[type] ?? "status"}
-      {...props}
-    >
+    <div className={`alerta ${clases[type] ?? "alerta-aviso"} ${className}`.trim()} role={type === "error" ? "alert" : "status"} {...props}>
       {children}
     </div>
   );
 }
 
-export function EmptyState({ title, description, action, icon = "home", className = "" }) {
+export function EmptyState({ title, description, action, className = "" }) {
   return (
-    <section className={`bc-card bc-shared-empty ${className}`.trim()}>
-      {icon && <span className="bc-shared-empty__icon"><Icon name={icon} size={23} /></span>}
-      <h2>{title}</h2>
+    <div className={`vacio-bloque ${className}`.trim()}>
+      <h3>{title}</h3>
       {description && <p>{description}</p>}
       {action}
-    </section>
+    </div>
   );
 }
 
-export function LoadingState({ children = "Cargando...", className = "" }) {
+export function LoadingState({ children = "Cargando..." }) {
   return (
-    <div className={`bc-shared-loading ${className}`.trim()} role="status" aria-live="polite">
-      <span className="bc-shared-loading__indicator" aria-hidden="true" />
+    <div className="cargando" role="status" aria-live="polite">
+      <i aria-hidden="true" />
       <span>{children}</span>
     </div>
   );
 }
 
-export function SearchField({ label, placeholder, value, onChange, className = "" }) {
+export function SearchField({ label, placeholder, value, onChange, id = "buscar" }) {
   return (
-    <label className={`bc-shared-search ${className}`.trim()}>
-      <Icon name="search" size={18} />
-      <span className="visually-hidden">{label}</span>
-      <input
-        type="search"
-        aria-label={label}
-        placeholder={placeholder}
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-      />
-    </label>
+    <div className="buscar">
+      <Icon name="search" />
+      <label className="sr" htmlFor={id}>{label}</label>
+      <input id={id} className="ctl" type="search" placeholder={placeholder} value={value}
+        onChange={(event) => onChange(event.target.value)} />
+    </div>
   );
 }
 
-export function FilterSelect({
-  label, value, onChange, options, defaultLabel = "Todos", className = "",
-}) {
+export function FilterSelect({ label, value, onChange, options, defaultLabel = "Todos", id }) {
   return (
-    <label className={`bc-shared-filter ${className}`.trim()}>
-      <span className="visually-hidden">{label}</span>
-      <select aria-label={label} value={value} onChange={(event) => onChange(event.target.value)}>
+    <div className="sel">
+      <label className="sr" htmlFor={id}>{label}</label>
+      <select id={id} className="ctl" aria-label={label} value={value} onChange={(event) => onChange(event.target.value)}>
         <option value="">{defaultLabel}</option>
         {options.map((option) => (
-          <option key={option.value ?? option} value={option.value ?? option}>
-            {option.label ?? option}
-          </option>
+          <option key={option.value ?? option} value={option.value ?? option}>{option.label ?? option}</option>
         ))}
       </select>
-    </label>
+      <Icon name="chevronDown" />
+    </div>
   );
 }
 
 export function TableContainer({ children, className = "", label }) {
   return (
-    <div className={`bc-table-wrap ${className}`.trim()}>
-      {label && <span className="visually-hidden">{label}</span>}
+    <div className={`tabla-caja ${className}`.trim()} role="region" aria-label={label} tabIndex={0}>
       {children}
     </div>
   );
 }
 
+const VARIANTES = { primary: "btn-brote", outline: "btn-oscuro", light: "btn-claro", danger: "btn-peligro" };
+
 export function ActionButton({ variant = "primary", size, className = "", children, ...props }) {
-  const sizeClass = size === "small" ? "bc-btn-sm" : "";
   return (
-    <button className={`bc-btn bc-btn-${variant} ${sizeClass} ${className}`.trim()} {...props}>
+    <button className={`btn ${VARIANTES[variant] ?? "btn-oscuro"} ${size === "small" ? "btn-sm" : ""} ${className}`.trim()} {...props}>
       {children}
     </button>
+  );
+}
+
+// Enlace con aspecto de botón
+export function ButtonLink({ to, variant = "primary", size, className = "", children, ...props }) {
+  return (
+    <Link to={to} className={`btn ${VARIANTES[variant] ?? "btn-oscuro"} ${size === "small" ? "btn-sm" : ""} ${className}`.trim()} {...props}>
+      {children}
+    </Link>
   );
 }

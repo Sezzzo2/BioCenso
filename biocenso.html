@@ -1,0 +1,1814 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Biocenso</title>
+<meta name="description" content="Cuenta tu ganado con un video de dron: Biocenso detecta cada bovino y lo compara con el registro de tu finca.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap" rel="stylesheet">
+<style>
+:root{
+  --pasto-950:#0d1712;
+  --pasto-900:#14221b;
+  --pasto-850:#1a2b22;
+  --pasto-800:#21362a;
+  --pasto-700:#2c4636;
+  --hoja:#5f8f35;
+  --hoja-claro:#7cae4a;
+  --brote:#86e05b;
+  --brote-tinta:#10230c;
+  --oliva:#b3b23a;
+  --crema:#f1f3ea;
+  --texto:#e7ebe0;
+  --texto-suave:#b9c4b2;
+  --texto-tenue:#93a18c;
+  --linea:rgba(214,230,200,.16);
+  --linea-fuerte:rgba(214,230,200,.38);
+  --ok:#8bd17a;
+  --ok-fondo:rgba(92,170,80,.18);
+  --err:#ff8c80;
+  --err-fondo:rgba(200,60,50,.22);
+  --espera:#e8cf6b;
+  --espera-fondo:rgba(220,190,80,.18);
+  --sombra:0 18px 40px -18px rgba(0,0,0,.6);
+  --r-panel:16px;
+  --r-ctl:999px;
+  --sidebar:220px;
+  --ease:cubic-bezier(.16,1,.3,1);
+  color-scheme:dark;
+}
+*{box-sizing:border-box;margin:0}
+[hidden]{display:none!important}
+html{scroll-behavior:smooth}
+body{
+  font-family:"DM Sans",system-ui,sans-serif;
+  background:var(--pasto-950);
+  color:var(--texto);
+  min-height:100dvh;
+  -webkit-font-smoothing:antialiased;
+  font-feature-settings:"ss01";
+}
+::selection{background:var(--brote);color:var(--brote-tinta)}
+:focus-visible{outline:2px solid var(--brote);outline-offset:3px;border-radius:6px}
+a{color:inherit}
+button,input,select{font:inherit;color:inherit}
+img{display:block;max-width:100%}
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-track{background:var(--pasto-950)}
+::-webkit-scrollbar-thumb{background:var(--pasto-700);border-radius:10px;border:2px solid var(--pasto-950)}
+*{scrollbar-color:var(--pasto-700) var(--pasto-950)}
+
+/* ---------- Paisaje de fondo ---------- */
+.paisaje{
+  position:fixed;inset:0;z-index:-1;
+  background:
+    linear-gradient(180deg,rgba(13,23,18,.15) 0%,rgba(13,23,18,.35) 45%,rgba(13,23,18,.82) 100%),
+    url("https://images.unsplash.com/photo-1532445697400-f5c10fb93a11?auto=format&fit=crop&w=2000&q=70") center 45%/cover no-repeat,
+    linear-gradient(180deg,#5d86b5 0%,#9fb9cf 40%,#4f7a3a 62%,#2d4a25 100%);
+}
+.paisaje::after{
+  content:"";position:absolute;inset:0;
+  background:linear-gradient(90deg,rgba(13,23,18,.55) 0%,rgba(13,23,18,.1) 55%,rgba(13,23,18,.25) 100%);
+}
+
+/* ---------- Estructura ---------- */
+.app{display:grid;grid-template-columns:var(--sidebar) 1fr;min-height:100dvh}
+.lateral{
+  position:sticky;top:0;height:100dvh;
+  display:flex;flex-direction:column;
+  background:linear-gradient(180deg,rgba(26,43,34,.82),rgba(20,34,27,.72));
+  backdrop-filter:blur(10px) saturate(1.1);
+  -webkit-backdrop-filter:blur(10px) saturate(1.1);
+  border-right:1px solid var(--linea);
+}
+.marca{
+  display:flex;align-items:baseline;
+  padding:22px 24px 18px;
+  font-weight:700;font-size:1.75rem;letter-spacing:-.02em;text-decoration:none;
+  border-bottom:1px solid var(--hoja);
+}
+.marca b{color:var(--oliva);font-weight:600}
+.marca span{color:var(--crema)}
+.nav{list-style:none;padding:28px 12px;display:grid;gap:6px;flex:1;align-content:start}
+.nav a{
+  display:flex;align-items:center;gap:16px;
+  padding:16px 18px;border-radius:12px;
+  text-decoration:none;font-size:1.1rem;color:var(--texto);
+  transition:background .25s var(--ease),color .25s var(--ease);
+}
+.nav a svg{width:24px;height:24px;flex:none;opacity:.85}
+.nav a:hover{background:rgba(241,243,234,.07)}
+.nav a[aria-current="page"]{background:rgba(134,224,91,.14);color:var(--crema)}
+.nav a[aria-current="page"] svg{color:var(--brote);opacity:1}
+.nav-usuario{border-top:1px solid var(--hoja);padding:18px 12px 26px}
+.nav-usuario a{
+  display:flex;align-items:center;gap:14px;padding:12px 18px;border-radius:12px;text-decoration:none;font-size:1.05rem;
+}
+.nav-usuario a:hover,.nav-usuario a[aria-current="page"]{background:rgba(241,243,234,.07)}
+.avatar{
+  width:34px;height:34px;border-radius:50%;display:grid;place-items:center;
+  background:var(--pasto-700);border:1px solid var(--linea-fuerte);font-weight:600;font-size:.9rem;color:var(--crema)
+}
+
+.principal{min-width:0;padding:22px clamp(18px,3.4vw,52px) 64px;position:relative}
+.barra-sup{display:flex;justify-content:flex-end;min-height:24px}
+.contacto{
+  color:#d9d86a;font-weight:600;font-size:.92rem;text-decoration:none;
+  padding:6px 14px;border-radius:999px;background:rgba(13,23,18,.62);
+  backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
+}
+.contacto:hover{background:rgba(13,23,18,.85)}
+
+.vista{display:none;animation:entra .6s var(--ease)}
+.vista.activa{display:block}
+@keyframes entra{from{opacity:.001;transform:translateY(10px);filter:blur(4px)}to{opacity:1;transform:none;filter:none}}
+
+h1,h2,h3{color:var(--crema);letter-spacing:-.025em;line-height:1.08;text-wrap:balance}
+.titulo-vista{font-size:clamp(2.4rem,4.2vw,3.4rem);font-weight:700;margin-top:4px}
+.bajada{font-size:1.15rem;color:var(--texto);margin-top:12px;max-width:62ch;text-shadow:0 1px 12px rgba(0,0,0,.45)}
+
+/* ---------- Botones ---------- */
+.btn{
+  --bg:transparent;--fg:var(--crema);--bd:var(--linea-fuerte);
+  display:inline-flex;align-items:center;justify-content:center;gap:12px;
+  padding:13px 26px;border-radius:var(--r-ctl);
+  background:var(--bg);color:var(--fg);border:1px solid var(--bd);
+  font-weight:600;font-size:1rem;text-decoration:none;cursor:pointer;
+  transition:transform .2s var(--ease),background .2s var(--ease),box-shadow .2s var(--ease),border-color .2s;
+}
+.btn:hover{transform:translateY(-1px)}
+.btn:active{transform:translateY(0)}
+.btn[disabled]{opacity:.45;cursor:not-allowed;transform:none}
+.btn-brote{--bg:var(--brote);--fg:var(--brote-tinta);--bd:transparent;box-shadow:0 10px 22px -12px rgba(0,0,0,.6)}
+.btn-brote:hover{--bg:#97ea6d}
+.btn-brote .ico-circ{width:32px;height:32px;border-radius:50%;background:var(--brote-tinta);color:var(--brote);display:grid;place-items:center;margin-left:-12px}
+.btn-oscuro{--bg:var(--pasto-850);--bd:var(--hoja)}
+.btn-oscuro:hover{--bg:var(--pasto-800)}
+.btn-claro{--bg:#d6dbe2;--fg:#17241c;--bd:transparent}
+.btn-claro:hover{--bg:#e6eaee}
+.btn-sm{padding:8px 16px;font-size:.88rem}
+.btn svg{width:18px;height:18px}
+
+/* ---------- Paneles ---------- */
+.panel{
+  background:rgba(26,43,34,.86);
+  border:1px solid var(--linea);
+  border-radius:var(--r-panel);
+  backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
+}
+.panel-solido{background:rgba(20,34,27,.94)}
+
+/* ---------- Inicio: héroe ---------- */
+.heroe{
+  display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,.85fr);
+  gap:clamp(24px,4vw,60px);align-items:center;
+  min-height:min(560px,68dvh);padding-top:8px;
+}
+.heroe h1{font-size:clamp(2.6rem,5.2vw,4.4rem);font-weight:700;text-shadow:0 2px 24px rgba(0,0,0,.35)}
+.heroe .bajada{font-size:clamp(1.05rem,1.4vw,1.25rem);max-width:40ch}
+.heroe-acciones{display:flex;flex-direction:column;align-items:flex-start;gap:16px;margin-top:36px}
+
+.vuelo{
+  padding:14px;border-radius:22px;
+  background:rgba(241,243,234,.14);
+  border:1px solid rgba(241,243,234,.35);
+  backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+  box-shadow:var(--sombra);
+  position:relative;
+}
+.vuelo-img{
+  position:relative;aspect-ratio:4/3;border-radius:12px;overflow:hidden;
+  background:#3d5a2c url("https://images.unsplash.com/photo-1791919512862-8bf521095d92?auto=format&fit=crop&w=800&h=600&q=75") 46% 49%/250% auto no-repeat;
+}
+.vuelo-img svg{position:absolute;inset:0;width:100%;height:100%}
+.caja{fill:none;stroke:var(--brote);stroke-width:2;rx:3;opacity:0;animation:caja .5s var(--ease) forwards}
+@keyframes caja{to{opacity:1}}
+.barrido{
+  position:absolute;left:0;right:0;height:38%;top:-40%;
+  background:linear-gradient(180deg,transparent,rgba(134,224,91,.22) 85%,rgba(134,224,91,.75) 100%);
+  border-bottom:1px solid var(--brote);
+  animation:barre 2.6s var(--ease) .2s forwards;
+  pointer-events:none;
+}
+@keyframes barre{0%{top:-40%;opacity:1}85%{opacity:1}100%{top:105%;opacity:0}}
+.vuelo-etq{
+  position:absolute;left:8px;top:8px;font-size:.78rem;font-weight:600;
+  background:rgba(13,23,18,.72);padding:4px 10px;border-radius:999px;color:var(--texto-suave)
+}
+.contador{
+  display:flex;align-items:center;justify-content:space-between;gap:16px;
+  margin:-34px 22px 6px;position:relative;
+  background:var(--pasto-900);
+  border-radius:999px;padding:10px 12px 10px 24px;box-shadow:0 10px 22px -10px rgba(0,0,0,.7);
+}
+.contador span{font-size:1rem;color:var(--texto)}
+.contador strong{font-size:2.6rem;font-weight:700;color:var(--crema);line-height:1;font-variant-numeric:tabular-nums;padding-right:14px}
+
+.ultimo{
+  margin-top:28px;
+  display:grid;grid-template-columns:minmax(220px,1.3fr) repeat(3,minmax(0,1fr));
+  gap:20px;align-items:center;padding:22px 28px;
+}
+.ultimo h2{font-size:1.4rem;font-weight:700}
+.ultimo .meta{font-size:.92rem;color:var(--texto-suave);margin-top:4px}
+.ultimo .btn{margin-top:16px}
+.dato{text-align:center}
+.dato dt{font-size:.92rem;color:var(--texto-suave);line-height:1.3;min-height:2.6em;display:flex;align-items:flex-end;justify-content:center}
+.dato dd{font-size:clamp(2.2rem,3.6vw,3rem);font-weight:700;color:var(--crema);line-height:1.1;margin-top:8px;font-variant-numeric:tabular-nums}
+.dato dd.pos{color:var(--espera)}
+.dato dd.cero{color:var(--ok)}
+.dato small{display:block;font-size:.78rem;font-weight:500;color:var(--texto-tenue);margin-top:2px}
+
+/* ---------- Cómo funciona ---------- */
+.seccion{margin-top:72px;scroll-margin-top:24px}
+.seccion > h2{font-size:clamp(2rem,3.6vw,3rem);font-weight:700;text-shadow:0 2px 18px rgba(0,0,0,.4)}
+.pasos{
+  list-style:none;padding:34px 28px 36px;margin-top:22px;
+  display:grid;grid-template-columns:repeat(4,1fr);gap:20px;position:relative;
+  border-radius:28px;
+}
+.paso{text-align:center;position:relative;display:flex;flex-direction:column;align-items:center}
+.paso-num{
+  width:58px;height:58px;border-radius:50%;display:grid;place-items:center;
+  background:var(--hoja);color:var(--crema);font-size:1.5rem;font-weight:600;position:relative;z-index:1;
+  box-shadow:0 0 0 6px rgba(26,43,34,.9);
+}
+.paso:not(:last-child)::after{
+  content:"";position:absolute;top:29px;left:calc(50% + 46px);right:calc(-50% + 46px - 20px);
+  height:3px;background:var(--hoja);border-radius:3px;
+}
+.paso h3{font-size:1.2rem;font-weight:600;margin-top:16px;min-height:2.4em}
+.paso p{font-size:.95rem;color:var(--texto);margin-top:16px;max-width:22ch;line-height:1.45}
+
+.consejos{
+  margin-top:22px;padding:30px 34px;border-radius:28px;
+  display:grid;grid-template-columns:1fr 1fr;gap:30px 0;
+}
+.consejo{padding:0 34px;text-align:center}
+.consejo:nth-child(odd){border-right:2px solid var(--hoja)}
+.consejo h3{font-size:1.3rem;font-weight:600;display:inline-flex;align-items:center;gap:10px}
+.consejo h3 svg{width:22px;height:22px;color:var(--hoja-claro)}
+.consejo p{margin:8px auto 0;color:var(--texto-suave);max-width:44ch;line-height:1.5}
+
+/* ---------- Censo ---------- */
+.nuevo{margin-top:26px;padding:clamp(22px,3vw,40px)}
+.nuevo h2{font-size:2rem;font-weight:700}
+.nuevo-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr);gap:clamp(20px,3vw,40px);margin-top:20px}
+.campo{display:grid;gap:10px;margin-bottom:22px}
+.campo label{font-size:1.1rem;color:var(--texto)}
+.ctl{
+  width:100%;padding:14px 20px;border-radius:var(--r-ctl);border:1px solid transparent;
+  background:#d6dbe2;color:#17241c;font-weight:600;font-size:1rem;
+  appearance:none;-webkit-appearance:none;
+}
+.ctl:focus-visible{outline:2px solid var(--brote);outline-offset:2px}
+.sel{position:relative}
+.sel svg{position:absolute;right:20px;top:50%;translate:0 -50%;width:20px;height:20px;color:#17241c;pointer-events:none}
+.ctl::-webkit-calendar-picker-indicator{cursor:pointer;opacity:.75}
+.ctl[disabled]{opacity:.6}
+
+.zona{
+  border:2.5px dashed rgba(214,224,230,.7);border-radius:26px;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;
+  text-align:center;padding:30px 20px;min-height:220px;cursor:pointer;
+  transition:background .25s var(--ease),border-color .25s var(--ease),transform .25s var(--ease);
+}
+.zona:hover,.zona.sobre{background:rgba(134,224,91,.07);border-color:var(--brote)}
+.zona.sobre{transform:scale(1.01)}
+.zona-ico{width:76px;height:76px;border-radius:50%;background:var(--crema);color:var(--pasto-900);display:grid;place-items:center;margin-bottom:6px}
+.zona-ico svg{width:36px;height:36px}
+.zona strong{font-size:1.3rem;color:var(--crema)}
+.zona em{font-size:.95rem;color:var(--texto-suave)}
+.zona.con-archivo{border-style:solid;border-color:var(--hoja)}
+.archivo{display:flex;align-items:center;gap:12px;font-size:.95rem;color:var(--texto);word-break:break-all}
+.archivo svg{width:22px;height:22px;color:var(--brote);flex:none}
+.zona-acciones{display:flex;justify-content:flex-end;gap:12px;margin-top:22px;flex-wrap:wrap}
+.aviso{
+  margin-top:16px;padding:12px 16px;border-radius:12px;font-size:.95rem;
+  background:var(--err-fondo);color:#ffd9d4;display:none
+}
+.aviso.ver{display:block}
+
+.progreso{margin-top:22px;display:none}
+.progreso.ver{display:block}
+.barra{height:10px;border-radius:10px;background:rgba(241,243,234,.12);overflow:hidden}
+.barra i{display:block;height:100%;width:100%;background:var(--brote);border-radius:inherit;transform:scaleX(0);transform-origin:left;transition:transform .3s linear}
+.barra.analiza i{width:40%;animation:vaiven 1.2s ease-in-out infinite alternate}
+@keyframes vaiven{from{transform:translateX(-10%)}to{transform:translateX(160%)}}
+.progreso p{margin-top:10px;color:var(--texto-suave);font-size:.95rem}
+
+.resultado{display:none;margin-top:22px;padding:26px 28px}
+.resultado.ver{display:block;animation:entra .6s var(--ease)}
+.resultado-top{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.resultado h3{font-size:1.5rem}
+.resultado .meta{color:var(--texto-suave);margin-top:4px}
+.resultado-datos{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-top:22px}
+.resultado-datos .dato{background:rgba(13,23,18,.45);border-radius:14px;padding:16px 10px}
+.frase{margin-top:18px;color:var(--texto);font-size:1.02rem}
+
+/* ---------- Historial ---------- */
+.cabecera{display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap;margin-top:72px}
+.filtro{display:flex;align-items:center;gap:14px}
+.filtro label{font-style:italic;font-size:1.25rem;color:var(--crema);text-shadow:0 1px 12px rgba(0,0,0,.5)}
+.filtro .sel select{
+  background:var(--pasto-850);color:var(--crema);border:1px solid var(--hoja);
+  padding:12px 52px 12px 22px;font-size:1.1rem;font-weight:500;
+}
+.filtro .sel svg{color:var(--crema)}
+.tabla-caja{margin-top:18px;overflow-x:auto;border-radius:6px;background:rgba(14,24,19,.95);border:1px solid var(--linea)}
+table{width:100%;border-collapse:collapse;min-width:720px}
+th{font-size:.8rem;font-weight:500;color:var(--texto-suave);text-align:left;padding:16px 14px;border-bottom:1px solid var(--linea)}
+td{padding:14px;border-bottom:1px solid var(--linea);font-size:.95rem;vertical-align:middle}
+tr:last-child td{border-bottom:0}
+tbody tr{transition:background .2s}
+tbody tr:hover{background:rgba(241,243,234,.04)}
+td:nth-child(-n+2),td.num,th{white-space:nowrap}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+td.num{font-weight:700;font-size:1.05rem;color:var(--crema)}
+td small{display:block;color:var(--texto-tenue);font-size:.8rem;margin-top:3px}
+td:last-child{text-align:right}
+.estado{display:inline-flex;align-items:center;gap:7px;font-size:.8rem;font-weight:500;padding:4px 10px;border-radius:7px;white-space:nowrap}
+.estado::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+.estado.ok{background:var(--ok-fondo);color:var(--ok)}
+.estado.err{background:var(--err-fondo);color:var(--err)}
+.estado.espera{background:var(--espera-fondo);color:var(--espera)}
+.btn-tabla{padding:8px 14px;border-radius:7px;font-size:.82rem;font-weight:600;background:transparent;border:1px solid var(--linea-fuerte);color:var(--crema);cursor:pointer}
+.btn-tabla:hover{background:rgba(241,243,234,.08)}
+.vacio{padding:36px;text-align:center;color:var(--texto-suave)}
+tr.resaltada{background:rgba(134,224,91,.1)}
+
+/* ---------- Fincas ---------- */
+.fincas{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:18px;margin-top:22px}
+.finca{
+  background:rgba(20,34,27,.9);border-radius:6px;padding:28px 26px 26px;min-height:400px;
+  display:flex;flex-direction:column;text-align:left;border:1px solid transparent;cursor:pointer;
+  transition:transform .3s var(--ease),border-color .3s var(--ease),background .3s;
+}
+.finca:hover{transform:translateY(-3px);border-color:var(--hoja)}
+.finca-marco{
+  border:2.5px dashed rgba(214,224,230,.75);border-radius:26px;flex:1;
+  display:flex;flex-direction:column;justify-content:space-between;padding:22px 20px;gap:18px;
+  background:var(--pasto-800);
+}
+.finca h3{font-size:1.5rem}
+.finca .lugar{color:var(--texto-suave);font-size:.95rem;margin-top:6px;display:flex;align-items:center;gap:6px}
+.finca .lugar svg{width:16px;height:16px}
+.finca-cifras{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.finca-cifras div{background:rgba(13,23,18,.4);border-radius:12px;padding:12px}
+.finca-cifras dt{font-size:.78rem;color:var(--texto-suave)}
+.finca-cifras dd{font-size:1.8rem;font-weight:700;color:var(--crema);font-variant-numeric:tabular-nums;line-height:1.15}
+.finca-pie{font-size:.9rem;color:var(--texto-suave)}
+.finca-pie b{color:var(--crema);font-weight:600}
+.finca-nueva .finca-marco{align-items:center;justify-content:center;text-align:center;background:var(--pasto-850)}
+.finca-nueva .zona-ico{width:64px;height:64px}
+.finca-nueva strong{font-size:1.2rem;color:var(--crema)}
+.finca-nueva p{color:var(--texto-suave);font-size:.92rem;max-width:22ch}
+
+.ficha{margin-top:22px;padding:clamp(22px,3vw,36px);display:none}
+.ficha.ver{display:block;animation:entra .5s var(--ease)}
+.ficha-top{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap}
+.ficha h2{font-size:2rem}
+.ficha .resultado-datos{grid-template-columns:repeat(3,1fr)}
+.lista-animales{margin-top:24px}
+.lista-animales h3{font-size:1.2rem;margin-bottom:12px}
+.form-linea{display:grid;grid-template-columns:repeat(3,minmax(0,1fr)) auto;gap:12px;align-items:end;margin-top:12px}
+.form-linea .campo{margin:0;gap:6px}
+.form-linea label{font-size:.9rem}
+.form-linea .ctl{padding:11px 16px}
+.volver{display:inline-flex;align-items:center;gap:8px;color:var(--texto-suave);text-decoration:none;font-size:.95rem;background:none;border:0;cursor:pointer;padding:0}
+.volver:hover{color:var(--crema)}
+.volver svg{width:18px;height:18px}
+
+/* ---------- Usuario ---------- */
+.perfil{margin-top:26px;padding:clamp(22px,3vw,36px);max-width:640px}
+.perfil-top{display:flex;align-items:center;gap:18px}
+.perfil-top .avatar{width:64px;height:64px;font-size:1.4rem}
+.perfil dl{display:grid;grid-template-columns:auto 1fr;gap:12px 24px;margin-top:24px}
+.perfil dt{color:var(--texto-suave)}
+.perfil dd{color:var(--crema);font-weight:500}
+
+.nota-demo{margin-top:12px;font-size:.85rem;color:var(--texto-tenue)}
+
+.toast{
+  position:fixed;left:50%;bottom:26px;translate:-50% 20px;opacity:0;pointer-events:none;
+  background:var(--pasto-900);border:1px solid var(--hoja);color:var(--crema);
+  padding:12px 20px;border-radius:999px;box-shadow:var(--sombra);font-weight:500;
+  transition:opacity .3s var(--ease),translate .3s var(--ease);z-index:20
+}
+.toast.ver{opacity:1;translate:-50% 0}
+
+/* ---------- Responsive ---------- */
+@media (max-width:1100px){
+  .ultimo{grid-template-columns:1fr 1fr 1fr}
+  .ultimo > div:first-child{grid-column:1/-1}
+  .pasos{grid-template-columns:1fr 1fr;row-gap:34px}
+  .paso:nth-child(2)::after{display:none}
+}
+@media (max-width:900px){
+  :root{--sidebar:0px}
+  .app{grid-template-columns:1fr}
+  .lateral{
+    position:fixed;top:auto;bottom:0;left:0;right:0;height:auto;z-index:10;
+    flex-direction:row;border-right:0;border-top:1px solid var(--linea);
+    background:rgba(20,34,27,.94);
+  }
+  .marca{display:none}
+  .nav{display:flex;padding:6px;flex:3;justify-content:space-around;gap:0}
+  .nav-usuario{border-top:0;padding:6px;flex:1}
+  .nav a,.nav-usuario a{flex-direction:column;gap:4px;padding:8px 6px;font-size:.75rem;justify-content:center;text-align:center}
+  .nav-usuario a .avatar{width:24px;height:24px;font-size:.7rem}
+  .principal{padding:14px 16px 110px}
+  .barra-sup{justify-content:space-between;align-items:center}
+  .marca-movil{display:flex!important}
+  .heroe{grid-template-columns:1fr;min-height:auto}
+  .nuevo-grid{grid-template-columns:1fr}
+  .consejos{grid-template-columns:1fr;padding:24px 18px}
+  .consejo{padding:0 8px}
+  .consejo:nth-child(odd){border-right:0}
+  .consejo:not(:last-child){border-bottom:1px solid var(--linea);padding-bottom:22px}
+  .resultado-datos,.ficha .resultado-datos{grid-template-columns:1fr 1fr}
+  .form-linea{grid-template-columns:1fr}
+  .finca{min-height:0;padding:18px}
+  .paso h3{min-height:0}
+  .paso p{margin-top:8px}
+}
+@media (max-width:560px){
+  .pasos{grid-template-columns:1fr;padding:26px 18px}
+  .paso::after{display:none}
+  .ultimo{grid-template-columns:1fr 1fr 1fr;padding:20px 16px;gap:10px}
+  .dato dt{font-size:.8rem}
+  .contador{margin:-30px 10px 4px}
+  .contador strong{font-size:2.1rem}
+  .heroe-acciones .btn{width:100%}
+  .filtro{width:100%;flex-wrap:wrap}
+  .filtro .sel{flex:1}
+}
+.marca-movil{display:none;font-weight:700;font-size:1.4rem;letter-spacing:-.02em;text-decoration:none}
+.marca-movil b{color:var(--oliva);font-weight:600}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.01ms!important;animation-delay:0s!important;transition-duration:.01ms!important}
+}
+
+/* ---------- Ampliación: paridad con la app original ---------- */
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.salto{position:absolute;left:12px;top:-60px;z-index:30;background:var(--brote);color:var(--brote-tinta);padding:10px 16px;border-radius:999px;font-weight:600}
+.salto:focus{top:12px}
+.migas{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:.9rem;color:var(--texto-suave);margin-bottom:6px;text-shadow:0 1px 10px rgba(0,0,0,.6)}
+.migas a{color:var(--texto);text-decoration:none}
+.migas a:hover{color:var(--crema);text-decoration:underline;text-underline-offset:3px}
+.migas span[aria-hidden]{opacity:.6}
+.cab-vista{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.cab-vista .acciones{display:flex;gap:10px;flex-wrap:wrap}
+.panel-pad{padding:clamp(20px,2.6vw,32px)}
+.bloque{margin-top:22px}
+.bloque > h2,.bloque-cab h2{font-size:1.5rem}
+.bloque-cab{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:16px}
+.bloque-cab p{color:var(--texto-suave);margin-top:4px;font-size:.95rem}
+.sub{color:var(--texto-suave);margin-top:4px}
+
+.cifras{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:14px}
+.cifra{background:rgba(13,23,18,.5);border-radius:14px;padding:16px 18px}
+.cifra dt{font-size:.88rem;color:var(--texto-suave)}
+.cifra dd{font-size:2rem;font-weight:700;color:var(--crema);line-height:1.15;margin-top:4px;font-variant-numeric:tabular-nums}
+.cifra dd small{font-size:.9rem;font-weight:500;color:var(--texto-suave);margin-left:4px}
+.cifra p{font-size:.82rem;color:var(--texto-tenue);margin-top:4px}
+.cifra dd.texto{font-size:1.15rem;font-weight:600;padding-top:6px}
+
+.nota{margin-top:16px;padding:12px 16px;border-radius:12px;font-size:.93rem;background:var(--espera-fondo);color:#f3e3a6}
+.ok-msg{margin-top:14px;padding:12px 16px;border-radius:12px;font-size:.95rem;background:var(--ok-fondo);color:#d2f2c8}
+
+.dos-col{display:grid;grid-template-columns:1fr 1fr;gap:22px;margin-top:22px}
+.lista-enl{list-style:none;padding:0;display:grid;gap:8px}
+.lista-enl a{display:flex;align-items:center;gap:14px;padding:12px 14px;border-radius:12px;background:rgba(13,23,18,.45);text-decoration:none;transition:background .2s}
+.lista-enl a:hover{background:rgba(13,23,18,.75)}
+.lista-enl .ico{width:38px;height:38px;border-radius:10px;display:grid;place-items:center;background:var(--pasto-700);color:var(--brote);flex:none}
+.lista-enl .ico svg{width:20px;height:20px}
+.lista-enl strong{display:block;color:var(--crema);font-weight:600}
+.lista-enl small{color:var(--texto-suave);font-size:.85rem}
+.lista-enl .flecha{margin-left:auto;width:18px;height:18px;color:var(--texto-tenue);rotate:-90deg}
+.lista-enl .estado{margin-left:auto}
+
+.comparacion table{min-width:560px}
+.comparacion td:first-child{color:var(--texto-suave)}
+.comparacion th.bc,.comparacion td.bc{color:var(--crema);background:rgba(95,143,53,.18)}
+.comparacion td.bc{font-weight:600}
+.llamado{margin-top:22px;padding:30px;display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap}
+.llamado h2{font-size:1.6rem}
+.llamado p{color:var(--texto-suave);margin-top:6px;max-width:52ch}
+.llamado .acciones{display:flex;gap:12px;flex-wrap:wrap}
+.pie{margin-top:56px;padding-top:20px;border-top:1px solid var(--linea);color:var(--texto-suave);font-size:.88rem;text-shadow:0 1px 8px rgba(0,0,0,.6)}
+
+/* Autenticación */
+.auth{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,460px);gap:clamp(24px,5vw,72px);align-items:center;min-height:calc(100dvh - 120px)}
+.auth h1{font-size:clamp(2.2rem,4vw,3.4rem)}
+.auth .bajada{max-width:44ch}
+.auth ul{list-style:none;padding:0;margin-top:26px;display:grid;gap:12px}
+.auth li{display:flex;align-items:center;gap:12px;font-size:1.05rem;text-shadow:0 1px 10px rgba(0,0,0,.5)}
+.auth li svg{width:22px;height:22px;color:var(--brote)}
+.auth-form{padding:clamp(24px,3vw,36px)}
+.auth-form h2{font-size:1.8rem}
+.auth-form .sub{margin-bottom:20px}
+.auth-form .campo{margin-bottom:16px}
+.auth-form .campo label,.form .campo label{font-size:.98rem}
+.auth-form .btn{width:100%;margin-top:6px}
+.auth-alt{margin-top:18px;text-align:center;color:var(--texto-suave);font-size:.95rem}
+.auth-alt a{color:var(--brote);font-weight:600}
+.separador{display:flex;align-items:center;gap:12px;color:var(--texto-tenue);font-size:.85rem;margin:18px 0}
+.separador::before,.separador::after{content:"";flex:1;height:1px;background:var(--linea)}
+.err-campo{color:var(--err);font-size:.86rem}
+.pista{color:var(--texto-tenue);font-size:.86rem}
+.ctl[aria-invalid="true"]{outline:2px solid var(--err);outline-offset:1px}
+textarea.ctl{border-radius:18px;min-height:88px;resize:vertical;font-weight:500}
+.ctl::placeholder{color:#5b6660;font-weight:500}
+
+/* Formularios generales */
+.form{max-width:760px}
+.form fieldset{border:0;padding:0;margin:0 0 22px}
+.form legend{font-size:1.2rem;font-weight:600;color:var(--crema);margin-bottom:4px}
+.form legend + p{color:var(--texto-suave);font-size:.92rem;margin-bottom:14px}
+.rejilla{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 18px}
+.rejilla .ancho{grid-column:1/-1}
+.form .campo{margin-bottom:16px;gap:8px}
+.form-acciones{display:flex;gap:12px;flex-wrap:wrap;margin-top:6px}
+.foto-prev{width:160px;aspect-ratio:1;object-fit:cover;border-radius:14px;margin-top:10px;border:1px solid var(--linea)}
+input[type=file].ctl{padding:10px 14px;font-weight:500}
+input[type=file].ctl::file-selector-button{border:0;border-radius:999px;padding:6px 14px;margin-right:12px;background:var(--pasto-800);color:var(--crema);font:inherit;cursor:pointer}
+
+/* Barra de herramientas de listas */
+.herramientas{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+.herramientas .buscar{flex:1 1 240px;position:relative}
+.herramientas .buscar svg{position:absolute;left:16px;top:50%;translate:0 -50%;width:18px;height:18px;color:#3b4a41;pointer-events:none}
+.herramientas .buscar .ctl{padding-left:44px}
+.herramientas .sel{flex:0 1 210px}
+.herramientas .ctl{padding:11px 18px}
+.fila-link{color:var(--crema);font-weight:600;text-decoration:none}
+.fila-link:hover{text-decoration:underline;text-underline-offset:3px}
+.tenue{color:var(--texto-tenue)}
+.nota-celda{max-width:220px;white-space:normal;color:var(--texto-suave)}
+
+/* Ficha */
+.ficha-grid{display:grid;grid-template-columns:200px minmax(0,1fr);gap:26px;align-items:start}
+.foto{width:100%;aspect-ratio:1;border-radius:16px;object-fit:cover;background:var(--pasto-800);display:grid;place-items:center;color:var(--texto-tenue)}
+.foto svg{width:56px;height:56px}
+.dl{display:grid;grid-template-columns:auto 1fr;gap:10px 26px}
+.dl dt{color:var(--texto-suave)}
+.dl dd{color:var(--crema);font-weight:500}
+.confirmar{display:inline-flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--err-fondo);padding:8px 8px 8px 16px;border-radius:999px;color:#ffd9d4}
+.btn-peligro{--bg:#b6463b;--fg:#fff;--bd:transparent}
+.btn-peligro:hover{--bg:#c95246}
+.btn-texto{background:none;border:0;color:var(--brote);font-weight:600;cursor:pointer;padding:6px 0;text-decoration:underline;text-underline-offset:3px}
+.btn-icono{width:34px;height:34px;border-radius:9px;border:1px solid var(--linea-fuerte);background:transparent;color:var(--texto);display:inline-grid;place-items:center;cursor:pointer}
+.btn-icono:hover{background:var(--err-fondo);color:var(--err);border-color:transparent}
+.btn-icono svg{width:16px;height:16px}
+
+/* Gráfico */
+.grafico{position:relative;margin-top:8px}
+.grafico svg{width:100%;height:auto;display:block;overflow:visible}
+.leyenda{display:flex;gap:20px;flex-wrap:wrap;font-size:.9rem;color:var(--texto);margin:6px 0 12px}
+.leyenda span{display:inline-flex;align-items:center;gap:8px}
+.leyenda i{width:18px;height:3px;border-radius:2px;display:inline-block}
+.g-rejilla{stroke:rgba(214,230,200,.1);stroke-width:1}
+.g-eje{fill:var(--texto-tenue);font:500 11px "DM Sans",sans-serif}
+.g-linea{fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.g-punto{stroke:#14221b;stroke-width:2}
+.g-etq{font:600 12px "DM Sans",sans-serif;fill:var(--texto)}
+.g-guia{stroke:var(--linea-fuerte);stroke-width:1;stroke-dasharray:3 3}
+.g-tip{position:absolute;pointer-events:none;background:var(--pasto-950);border:1px solid var(--linea-fuerte);border-radius:10px;padding:10px 12px;font-size:.85rem;min-width:170px;opacity:0;transition:opacity .15s;box-shadow:var(--sombra);z-index:2}
+.g-tip.ver{opacity:1}
+.g-tip b{display:block;color:var(--crema);margin-bottom:6px}
+.g-tip div{display:flex;justify-content:space-between;gap:16px;color:var(--texto-suave)}
+.g-tip div span:last-child{color:var(--crema);font-weight:600;font-variant-numeric:tabular-nums}
+.g-tip i{display:inline-block;width:10px;height:3px;border-radius:2px;margin-right:6px;vertical-align:middle}
+
+.vacio-bloque{padding:30px 20px;text-align:center;color:var(--texto-suave)}
+.vacio-bloque h3{font-size:1.2rem;margin-bottom:6px}
+.vacio-bloque .btn{margin-top:14px}
+
+.nav-salir{display:flex;align-items:center;gap:14px;padding:10px 18px;border-radius:12px;background:none;border:0;color:var(--texto-suave);cursor:pointer;width:100%;font-size:.95rem}
+.nav-salir:hover{background:rgba(241,243,234,.07);color:var(--crema)}
+.nav-salir svg{width:20px;height:20px}
+
+@media (max-width:900px){
+  .auth{grid-template-columns:1fr;min-height:0}
+  .dos-col{grid-template-columns:1fr}
+  .rejilla{grid-template-columns:1fr}
+  .ficha-grid{grid-template-columns:1fr}
+  .ficha-grid .foto{max-width:180px}
+  .nav-salir{display:none}
+  .llamado{padding:22px}
+}
+a.finca{text-decoration:none;color:inherit}
+.linea-2{grid-template-columns:minmax(0,260px) auto}
+.linea-3{grid-template-columns:minmax(0,1.2fr) minmax(0,1fr) auto}
+.linea-nv{grid-template-columns:minmax(0,1fr) auto auto}
+@media (max-width:900px){.form-linea[class*="linea-"]{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<a class="salto" href="#contenido">Saltar al contenido</a>
+<div class="paisaje" aria-hidden="true"></div>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-casa" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h5v-6h4v6h5V9.5"/></symbol>
+    <symbol id="i-escaner" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3"/><rect x="7.5" y="8" width="9" height="8" rx="1"/><path d="M3 12h18"/></symbol>
+    <symbol id="i-pin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21Z"/><circle cx="12" cy="9.5" r="2.5"/></symbol>
+    <symbol id="i-usuario" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></symbol>
+    <symbol id="i-subir" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20V5M5.5 11.5 12 5l6.5 6.5"/></symbol>
+    <symbol id="i-flecha" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></symbol>
+    <symbol id="i-atras" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M11 6l-6 6 6 6"/></symbol>
+    <symbol id="i-video" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="13" height="12" rx="2"/><path d="m16 10 5-3v10l-5-3"/></symbol>
+    <symbol id="i-altura" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M8 7l4-4 4 4M8 17l4 4 4-4"/></symbol>
+    <symbol id="i-ruta" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4v16M12 4v16M19 4v16M5 20c0-2 7-2 7 0M12 4c0-2 7-2 7 0"/></symbol>
+    <symbol id="i-sol" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></symbol>
+    <symbol id="i-archivo" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8Z"/><path d="M14 3v5h5M10 12.5v5l4-2.5Z"/></symbol>
+    <symbol id="i-mas" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-buscar" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.2-4.2"/></symbol>
+    <symbol id="i-basura" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></symbol>
+    <symbol id="i-salir" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3M10 8l-4 4 4 4M6 12h10"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></symbol>
+    <symbol id="i-panel" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></symbol>
+    <symbol id="i-vaca" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 6 3 4M19 6l2-2"/><path d="M7 7h10a2 2 0 0 1 2 2v3a7 7 0 0 1-14 0V9a2 2 0 0 1 2-2Z"/><ellipse cx="12" cy="16" rx="3.5" ry="2.5"/><path d="M9 11h.01M15 11h.01"/></symbol>
+    <symbol id="i-historial" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/></symbol>
+  </defs>
+</svg>
+
+<div class="app">
+  <aside class="lateral" aria-label="Navegación principal">
+    <a class="marca" href="#inicio" aria-label="Biocenso, inicio"><b>BIO</b><span>CENSO</span></a>
+    <ul class="nav">
+      <li><a href="#inicio" data-ruta="inicio"><svg><use href="#i-casa"/></svg>Inicio</a></li>
+      <li><a href="#censo" data-ruta="censo"><svg><use href="#i-escaner"/></svg>Censo</a></li>
+      <li><a href="#fincas" data-ruta="fincas"><svg><use href="#i-pin"/></svg>Fincas</a></li>
+    </ul>
+    <div class="nav-usuario" id="nav-usuario"></div>
+  </aside>
+
+  <main class="principal" id="contenido" tabindex="-1">
+    <div class="barra-sup">
+      <a class="marca-movil" href="#inicio"><b>BIO</b>CENSO</a>
+      <a class="contacto" href="mailto:contacto@biocenso.co">contacto</a>
+    </div>
+    <div id="vista"></div>
+  </main>
+</div>
+
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+(() => {
+  "use strict";
+  const $ = (s, r = document) => r.querySelector(s);
+  const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+  const CLAVE = "biocenso-datos-v3";
+  const ESTADOS_REPRODUCTIVOS = ["Novillo", "Novilla", "Toro", "Vaca", "Ternero", "Ternera"];
+  const ESTADOS_GENERALES = ["Sano", "Enfermo", "En tratamiento"];
+  const COLOR_IA = "#4fa236", COLOR_MANUAL = "#a775e0";
+  const REGLA_CONTRASENA = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/;
+  const REGLA_CORREO = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+
+  /* ================= Datos de ejemplo ================= */
+  function generarAnimales(fincaId, prefijo, n) {
+    return Array.from({ length: n }, (_, i) => {
+      const sexo = i % 3 === 0 ? "Macho" : "Hembra";
+      const anio = 2020 + (i % 6);
+      const joven = anio >= 2025;
+      const reproductivo = sexo === "Macho"
+        ? (joven ? "Ternero" : i % 6 === 0 ? "Toro" : "Novillo")
+        : (joven ? "Ternera" : i % 4 === 1 ? "Novilla" : "Vaca");
+      const general = i % 13 === 5 ? "En tratamiento" : i % 17 === 8 ? "Enfermo" : "Sano";
+      return {
+        id: `${fincaId}-a${i + 1}`, fincaId,
+        numero: `${prefijo}-${String(i + 1).padStart(3, "0")}`,
+        sexo, nacimiento: `${anio}-${String((i % 9) + 1).padStart(2, "0")}-${String(10 + (i % 18)).padStart(2, "0")}`,
+        peso: joven ? 160 + ((i * 23) % 90) : 330 + ((i * 37) % 170),
+        estadoGeneral: general, estadoReproductivo: reproductivo,
+        enfermedad: general === "Sano" ? "" : i % 2 ? "Mastitis" : "Parásitos gastrointestinales",
+        foto: null,
+      };
+    });
+  }
+
+  const VACUNAS_BASE = [
+    { id: "1", nombre: "Fiebre Aftosa" }, { id: "2", nombre: "Brucelosis Bovina" },
+    { id: "3", nombre: "Rabia Silvestre" }, { id: "4", nombre: "Carbón Sintomático" },
+  ];
+
+  // Base vacía: cada persona crea su cuenta y solo ve sus propios datos
+  const semilla = () => ({ sesion: null, usuarios: [], fincas: [], animales: [], vacunas: VACUNAS_BASE.map((v) => ({ ...v })), aplicaciones: [], censos: [] });
+
+  // Carga las dos fincas de ejemplo en la cuenta indicada (solo si no tiene fincas)
+  function cargarEjemplo(usuarioId) {
+    const f1 = nuevoId(), f2 = nuevoId();
+    const animales = [...generarAnimales(f1, "LV", 46), ...generarAnimales(f2, "ER", 15)];
+    animales.forEach((a, i) => {
+      if (a.fincaId === f1 && i < 30) db.aplicaciones.push({ id: nuevoId(), animalId: a.id, vacunaId: "1", fecha: "2026-08-15" });
+      if (a.fincaId === f1 && i % 3 === 0) db.aplicaciones.push({ id: nuevoId(), animalId: a.id, vacunaId: "3", fecha: "2026-09-02" });
+      if (a.fincaId === f2 && a.sexo === "Hembra") db.aplicaciones.push({ id: nuevoId(), animalId: a.id, vacunaId: "2", fecha: "2026-07-20" });
+    });
+    db.fincas.push(
+      { id: f1, usuarioId, nombre: "La Vitrina", municipio: "Villavicencio", departamento: "Meta", direccion: "Sede Campus Villavicencio, Universidad Cooperativa de Colombia" },
+      { id: f2, usuarioId, nombre: "El Reposo", municipio: "Acacías", departamento: "Meta", direccion: "Vereda San Nicolás, km 8" },
+    );
+    db.animales.push(...animales);
+    const censos = [
+      { fincaId: f2, fechaVuelo: "2026-07-11", video: "vuelo_julio.mov", duracion: null, bovinos: null, peso: null, pesoMin: null, pesoMax: null, conteoManual: null, nota: "El archivo llegó dañado", tiempo: null, estado: "error" },
+      { fincaId: f1, fechaVuelo: "2026-07-30", video: "DJI_0371.MP4", duracion: 375, bovinos: 46, peso: 398, pesoMin: 372, pesoMax: 425, conteoManual: null, nota: "", tiempo: 2.9, estado: "completado" },
+      { fincaId: f2, fechaVuelo: "2026-08-15", video: "potrero_norte.mp4", duracion: 490, bovinos: 15, peso: 388, pesoMin: 360, pesoMax: 410, conteoManual: 15, nota: "Potrero norte", tiempo: 4.0, estado: "completado" },
+      { fincaId: f1, fechaVuelo: "2026-08-29", video: "DJI_0398.MP4", duracion: 358, bovinos: 47, peso: 405, pesoMin: 378, pesoMax: 432, conteoManual: 46, nota: "", tiempo: 3.1, estado: "completado" },
+      { fincaId: f1, fechaVuelo: "2026-09-12", video: "DJI_0412.MP4", duracion: 402, bovinos: 48, peso: 412, pesoMin: 385, pesoMax: 440, conteoManual: 46, nota: "Potrero central, vuelo de la mañana", tiempo: 3.4, estado: "completado" },
+    ];
+    censos.forEach((c) => db.censos.push({ id: siguienteCenso(), modelo: "YOLOv26s", ...c }));
+  }
+
+  let db;
+  try { db = JSON.parse(localStorage.getItem(CLAVE)) || semilla(); } catch { db = semilla(); }
+  const guardar = () => { try { localStorage.setItem(CLAVE, JSON.stringify(db)); } catch { toast("No se pudo guardar en este navegador: el espacio está lleno"); } };
+  const nuevoId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+  const siguienteCenso = () => String(Math.max(0, ...db.censos.map((x) => Number(x.id) || 0)) + 1);
+
+  /* ================= Utilidades ================= */
+  const esc = (t) => String(t ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const meses = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sept", "oct", "nov", "dic"];
+  const mesesLargos = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
+  const partes = (iso) => iso.split("-").map(Number);
+  const fechaCorta = (iso) => { if (!iso) return "—"; const [a, m, d] = partes(iso); return `${d} ${meses[m - 1]} ${a}`; };
+  const fechaLarga = (iso) => { if (!iso) return "—"; const [a, m, d] = partes(iso); return `${d} de ${mesesLargos[m - 1]} de ${a}`; };
+  const hoyISO = () => { const h = new Date(); return `${h.getFullYear()}-${String(h.getMonth() + 1).padStart(2, "0")}-${String(h.getDate()).padStart(2, "0")}`; };
+  const duracion = (s) => s == null ? "" : `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
+  const num = (n) => n == null ? "—" : Number(n).toLocaleString("es-CO");
+  const signo = (n) => n == null ? "—" : n > 0 ? `+${n}` : String(n);
+  const plural = (n, s, p) => `${n} ${n === 1 ? s : p}`;
+  const tiempo = (s) => s == null ? "—" : Number(s) < 1 ? "menos de 1 s" : `${Number(s).toFixed(1)} s`;
+  const edad = (iso) => {
+    if (!iso) return "";
+    const [a, m] = partes(iso); const h = new Date();
+    const meses_ = (h.getFullYear() - a) * 12 + (h.getMonth() + 1 - m);
+    return meses_ < 24 ? plural(Math.max(0, meses_), "mes", "meses") : plural(Math.floor(meses_ / 12), "año", "años");
+  };
+  const normal = (v) => String(v ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+  const ico = (id) => `<svg><use href="#i-${id}"/></svg>`;
+  const iniciales = (u) => ((u?.nombre?.[0] || "") + (u?.apellido?.[0] || "")).toUpperCase() || "U";
+
+  function toast(msg) {
+    const t = $("#toast"); t.textContent = msg; t.classList.add("ver");
+    clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove("ver"), 2800);
+  }
+
+  async function hash(texto) {
+    try {
+      const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(texto));
+      return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
+    } catch {
+      let h = 0; for (const c of texto) h = (h * 31 + c.charCodeAt(0)) | 0; return "x" + h;
+    }
+  }
+
+  /* ================= Consultas ================= */
+  const usuario = () => db.usuarios.find((u) => u.id === db.sesion) || null;
+  const misFincas = () => db.fincas.filter((f) => f.usuarioId === db.sesion);
+  const finca = (id) => misFincas().find((f) => f.id === id);
+  const animalesDe = (fid) => db.animales.filter((a) => a.fincaId === fid);
+  const registrados = (fid) => animalesDe(fid).length;
+  const misCensos = () => { const ids = new Set(misFincas().map((f) => f.id)); return db.censos.filter((c) => ids.has(c.fincaId)); };
+  const ordenar = (lista) => [...lista].sort((a, b) => b.fechaVuelo.localeCompare(a.fechaVuelo) || Number(b.id) - Number(a.id));
+  const censosDe = (fid) => ordenar(db.censos.filter((c) => c.fincaId === fid));
+  const ultimoDe = (fid) => censosDe(fid).find((c) => c.estado === "completado");
+  const censo = (id) => misCensos().find((c) => c.id === id);
+  const animal = (id) => { const a = db.animales.find((x) => x.id === id); return a && finca(a.fincaId) ? a : null; };
+  const vacuna = (id) => db.vacunas.find((v) => v.id === id);
+  const pesoTotal = (c) => c.bovinos != null && c.peso != null ? c.bovinos * c.peso : null;
+  const lugar = (f) => [f.municipio, f.departamento].filter(Boolean).join(", ");
+
+  const fraseRegistro = (dif) => dif === 0
+    ? "El conteo del dron coincide con tu registro."
+    : dif > 0
+      ? `El dron vio ${plural(dif, "bovino", "bovinos")} más de los que tienes registrados. Revisa si hay animales sin registrar.`
+      : `El dron vio ${plural(-dif, "bovino", "bovinos")} menos de los registrados. Puede haber animales fuera del recorrido.`;
+  const fraseManual = (dif) => dif === 0
+    ? "El conteo de la IA coincide con el conteo manual."
+    : `La IA contó ${plural(Math.abs(dif), "animal", "animales")} ${dif > 0 ? "más" : "menos"} que el conteo manual.`;
+
+  const estadoCenso = (c) => c.estado === "completado"
+    ? `<span class="estado ok">Completado</span>`
+    : c.estado === "procesando" ? `<span class="estado espera">Procesando</span>` : `<span class="estado err">No se pudo procesar</span>`;
+  const estadoAnimal = (e) => !e ? `<span class="tenue">Sin registrar</span>`
+    : `<span class="estado ${e === "Sano" ? "ok" : e === "Enfermo" ? "err" : "espera"}">${esc(e)}</span>`;
+
+  const sel = (id, opciones, valor, vacio) => `<div class="sel"><select id="${id}" name="${id}" class="ctl">${vacio != null ? `<option value="">${esc(vacio)}</option>` : ""}${opciones.map((o) => {
+    const [v, t] = Array.isArray(o) ? o : [o, o];
+    return `<option value="${esc(v)}"${String(v) === String(valor ?? "") ? " selected" : ""}>${esc(t)}</option>`;
+  }).join("")}</select>${ico("flecha")}</div>`;
+
+  const migas = (lista) => `<nav class="migas" aria-label="Ruta de navegación">${lista.map(([t, r], i) =>
+    `${i ? `<span aria-hidden="true">/</span>` : ""}${r ? `<a href="${r}">${esc(t)}</a>` : `<span aria-current="page">${esc(t)}</span>`}`).join("")}</nav>`;
+
+  const cifra = (etq, valor, unidad, pista) => `<dl class="cifra"><dt>${etq}</dt><dd${typeof valor === "string" && /[a-z]/i.test(valor) && !unidad ? ` class="texto"` : ""}>${valor}${unidad && valor !== "—" ? `<small>${unidad}</small>` : ""}</dd>${pista ? `<p>${pista}</p>` : ""}</dl>`;
+
+  /* ================= Vistas ================= */
+  const V = {};
+
+  V.inicio = (ancla) => {
+    const u = usuario();
+    return `
+    <div class="heroe">
+      <div>
+        <h1 id="t-inicio">Cuenta tu ganado con un video de dron</h1>
+        <p class="bajada">Sube el video del vuelo y Biocenso detectará cada bovino, dando el total y comparándolo con el registro de tu finca.</p>
+        <div class="heroe-acciones">
+          <a class="btn btn-brote" href="#censo"><span class="ico-circ">${ico("subir")}</span>Subir video del censo</a>
+          <a class="btn btn-oscuro" href="#fincas">Ver mis fincas</a>
+        </div>
+      </div>
+      <figure class="vuelo" aria-label="Ejemplo de detección sobre una toma aérea">
+        <div class="vuelo-img">
+          <svg viewBox="0 0 400 300" preserveAspectRatio="none" id="cajas" aria-hidden="true"></svg>
+          <div class="barrido"></div>
+          <span class="vuelo-etq">Vista de ejemplo · toma aérea</span>
+        </div>
+        <div class="contador"><span>Bovinos detectados</span><strong id="contador-num">0</strong></div>
+      </figure>
+    </div>
+    ${u ? bloqueUltimo() + bloquePanelGeneral(u) : ""}
+    <section class="seccion" id="como" aria-labelledby="t-como">
+      <h2 id="t-como">¿Cómo funciona?</h2>
+      <ol class="panel pasos">
+        <li class="paso"><span class="paso-num">1</span><h3>Vuela sobre el potrero</h3><p>Graba tu finca con el dron a unos 30 a 50 metros de altura y con luz suave.</p></li>
+        <li class="paso"><span class="paso-num">2</span><h3>Sube el video</h3><p>En Censo elige la finca, la fecha del vuelo y el archivo del video.</p></li>
+        <li class="paso"><span class="paso-num">3</span><h3>Recibe el conteo</h3><p>El modelo de visión por computadora detecta cada bovino y suma el total. El resultado queda guardado en tu historial.</p></li>
+        <li class="paso"><span class="paso-num">4</span><h3>Compara con tu registro</h3><p>En Fincas registra cada animal y revisa si el conteo del dron coincide con tu inventario.</p></li>
+      </ol>
+    </section>
+    <section class="seccion" aria-labelledby="t-consejos">
+      <h2 id="t-consejos">Para un buen conteo</h2>
+      <div class="panel consejos">
+        <div class="consejo"><h3>${ico("altura")}Altura de vuelo</h3><p>Entre 30 y 50 metros: los animales se ven completos y con buen detalle.</p></div>
+        <div class="consejo"><h3>${ico("ruta")}Recorrido</h3><p>Avanza en líneas paralelas y no pases dos veces por la misma zona, así no se cuenta dos veces a un animal.</p></div>
+        <div class="consejo"><h3>${ico("sol")}Luz</h3><p>Graba a primera hora o con cielo nublado para evitar sombras fuertes.</p></div>
+        <div class="consejo"><h3>${ico("video")}Formato del video</h3><p>Sube el archivo en MP4 o MOV, tal como sale del dron.</p></div>
+      </div>
+    </section>
+    <section class="seccion comparacion" id="comparacion" aria-labelledby="t-comp">
+      <h2 id="t-comp">Conteo manual vs. Biocenso</h2>
+      <div class="tabla-caja" style="margin-top:22px">
+        <table>
+          <thead><tr><th>Criterio</th><th>Conteo manual</th><th class="bc">Biocenso</th></tr></thead>
+          <tbody>
+            <tr><td>Método</td><td>Recorrido a pie o a caballo</td><td class="bc">Video aéreo con dron</td></tr>
+            <tr><td>Tiempo de la jornada</td><td>Depende del tamaño del potrero</td><td class="bc">Depende de la duración del vuelo</td></tr>
+            <tr><td>Registro de resultados</td><td>Cuaderno u hojas sueltas</td><td class="bc">Base de datos centralizada</td></tr>
+            <tr><td>Peso del hato</td><td>Báscula o cálculo a ojo</td><td class="bc">Peso estimado por res y total</td></tr>
+            <tr><td>Historial de censos</td><td>Difícil de consultar</td><td class="bc">Gráficas de evolución</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+    ${u ? "" : `
+    <section class="panel panel-solido llamado" aria-labelledby="t-llamado">
+      <div><h2 id="t-llamado">Lleva el registro de tu finca</h2><p>Crea tu cuenta para subir tus censos, registrar cada bovino y llevar sus vacunas. Solo tú ves la información de tus fincas.</p></div>
+      <div class="acciones"><a class="btn btn-brote" href="#registro">Crear cuenta</a><a class="btn btn-oscuro" href="#login">Iniciar sesión</a></div>
+    </section>`}
+    <footer class="pie">Biocenso · Trabajo de grado · Universidad Cooperativa de Colombia, Villavicencio</footer>`;
+  };
+
+  function bloqueUltimo() {
+    const c = ordenar(misCensos()).find((x) => x.estado === "completado");
+    if (!c) return `<section class="panel ultimo" aria-labelledby="t-ultimo"><div><h2 id="t-ultimo">Último censo</h2><p class="meta">Todavía no hay censos. Sube tu primer video para ver aquí el resultado.</p><a class="btn btn-oscuro btn-sm" href="#censo">Subir video</a></div></section>`;
+    const reg = registrados(c.fincaId), dif = c.bovinos - reg;
+    return `<section class="panel ultimo" aria-labelledby="t-ultimo">
+      <div>
+        <h2 id="t-ultimo">Último censo</h2>
+        <p class="meta">${esc(finca(c.fincaId)?.nombre)}, vuelo el ${fechaLarga(c.fechaVuelo)}</p>
+        <a class="btn btn-oscuro btn-sm" href="#censo/historial">Ver historial</a>
+      </div>
+      <dl class="dato"><dt>Detectados en el video</dt><dd>${c.bovinos}</dd></dl>
+      <dl class="dato"><dt>Registrados en la finca</dt><dd>${reg}</dd></dl>
+      <dl class="dato"><dt>Diferencia</dt><dd class="${dif === 0 ? "cero" : "pos"}">${signo(dif)}</dd></dl>
+    </section>`;
+  }
+
+  function resumenVacunacion(fincas) {
+    const ids = new Set(db.animales.filter((a) => fincas.some((f) => f.id === a.fincaId)).map((a) => a.id));
+    const apl = db.aplicaciones.filter((p) => ids.has(p.animalId));
+    return { total: apl.length, vacunados: new Set(apl.map((p) => p.animalId)).size };
+  }
+
+  function bloquePanelGeneral(u) {
+    const fincas = misFincas();
+    const bovinos = fincas.reduce((s, f) => s + registrados(f.id), 0);
+    const censos = ordenar(misCensos());
+    const vac = resumenVacunacion(fincas);
+    return `
+    <section class="seccion" aria-labelledby="t-panel">
+      <div class="bloque-cab"><div><h2 id="t-panel" style="font-size:clamp(2rem,3.6vw,3rem)">Hola, ${esc(u.nombre)}</h2><p class="bajada" style="margin-top:6px">Consulta el estado de tus fincas y continúa con las tareas de gestión.</p></div></div>
+      <div class="panel panel-pad">
+        <div class="cifras">
+          ${cifra("Fincas", fincas.length, "", "Registradas en tu cuenta")}
+          ${cifra("Bovinos registrados", bovinos, "", "Total de tus fincas")}
+          ${cifra("Censos realizados", censos.length, "", "Incluye los que no se pudieron procesar")}
+        </div>
+        ${fincas.length === 0 ? `<div class="vacio-bloque"><h3>Empieza registrando una finca</h3><p>Cuando registres tus fincas, aquí verás el resumen de bovinos y censos.</p><a class="btn btn-brote" href="#fincas/nueva">Registrar finca</a></div>` : ""}
+      </div>
+    </section>
+    <section class="bloque" aria-labelledby="t-vac">
+      <div class="panel panel-pad">
+        <div class="bloque-cab"><div><h2 id="t-vac">Resumen de vacunación</h2><p>Salud animal de todas tus fincas.</p></div></div>
+        <div class="cifras">
+          ${cifra("Aplicaciones registradas", vac.total, "", "Según el historial de tus fincas")}
+          ${cifra("Animales vacunados", vac.vacunados, "", "Con al menos una aplicación")}
+          ${cifra("Próximas dosis", "No calculable", "", "No hay fechas programadas")}
+          ${cifra("Vacunaciones vencidas", "No calculable", "", "No hay intervalos de refuerzo")}
+        </div>
+        <p class="nota">Las próximas dosis y las vencidas no se pueden calcular porque las vacunas del catálogo no tienen intervalos de refuerzo registrados.</p>
+      </div>
+    </section>
+    <div class="dos-col">
+      <section class="panel panel-pad" aria-labelledby="t-rec">
+        <div class="bloque-cab"><h2 id="t-rec">Censos recientes</h2><a class="btn-texto" href="#censo/historial">Ver historial</a></div>
+        ${censos.length ? `<ul class="lista-enl">${censos.slice(0, 5).map((c) => `<li><a href="#censo/${c.id}"><span class="ico">${ico("historial")}</span><span><strong>Censo n.º ${c.id} · ${esc(finca(c.fincaId)?.nombre)}</strong><small>Vuelo del ${fechaCorta(c.fechaVuelo)}${c.bovinos != null ? ` · ${c.bovinos} bovinos` : ""}</small></span>${estadoCenso(c)}</a></li>`).join("")}</ul>`
+          : `<p class="sub">Todavía no hay censos registrados. Cuando crees uno, aparecerá aquí.</p>`}
+      </section>
+      <section class="panel panel-pad" aria-labelledby="t-acc">
+        <div class="bloque-cab"><h2 id="t-acc">Accesos rápidos</h2></div>
+        <ul class="lista-enl">
+          <li><a href="#fincas"><span class="ico">${ico("pin")}</span><span><strong>Gestionar fincas</strong><small>Consultar propiedades y bovinos</small></span>${ico("flecha").replace("<svg>", `<svg class="flecha">`)}</a></li>
+          <li><a href="#fincas/nueva"><span class="ico">${ico("mas")}</span><span><strong>Registrar finca</strong><small>Agregar una propiedad a tu cuenta</small></span>${ico("flecha").replace("<svg>", `<svg class="flecha">`)}</a></li>
+          <li><a href="#censo"><span class="ico">${ico("subir")}</span><span><strong>Crear censo</strong><small>Selecciona una finca y carga su video</small></span>${ico("flecha").replace("<svg>", `<svg class="flecha">`)}</a></li>
+          ${fincas.slice(0, 3).map((f) => `<li><a href="#finca/${f.id}/panel"><span class="ico">${ico("panel")}</span><span><strong>Panel de ${esc(f.nombre)}</strong><small>${esc(lugar(f))}</small></span>${ico("flecha").replace("<svg>", `<svg class="flecha">`)}</a></li>`).join("")}
+        </ul>
+      </section>
+    </div>`;
+  }
+
+  /* ---------- Autenticación ---------- */
+  V.login = () => `
+    <div class="auth">
+      <div>
+        <h1>Conoce mejor tu finca. Cuida mejor tu ganado.</h1>
+        <p class="bajada">Organiza tus fincas, lleva el registro de cada bovino y consulta censos y vacunación desde un solo lugar.</p>
+        <ul><li>${ico("pin")}Información de tus fincas</li><li>${ico("historial")}Historial y seguimiento del ganado</li><li>${ico("check")}Censos y vacunaciones organizados</li></ul>
+      </div>
+      <form class="panel panel-solido auth-form" id="f-login" novalidate>
+        <h2>Iniciar sesión</h2>
+        <p class="sub">Ingresa tus datos para continuar.</p>
+        <div class="campo"><label for="l-correo">Correo electrónico</label><input id="l-correo" type="email" class="ctl" autocomplete="email" placeholder="nombre@ejemplo.com"></div>
+        <div class="campo"><label for="l-clave">Contraseña</label><input id="l-clave" type="password" class="ctl" autocomplete="current-password" placeholder="Tu contraseña"></div>
+        <div class="aviso" id="aviso-login" role="alert"></div>
+        <button class="btn btn-brote" type="submit">Ingresar a Biocenso</button>
+        <p class="auth-alt">¿No tienes cuenta? <a href="#registro">Crear una cuenta</a></p>
+      </form>
+    </div>`;
+
+  V.registro = () => `
+    <div class="auth">
+      <div>
+        <h1>Un registro ordenado para una gestión más sencilla</h1>
+        <p class="bajada">Crea tu cuenta para organizar la información de tus fincas, bovinos, censos y vacunas.</p>
+        <ul><li>${ico("check")}Las cuentas nuevas se crean con el rol Ganadero.</li></ul>
+      </div>
+      <form class="panel panel-solido auth-form" id="f-registro" novalidate>
+        <h2>Crear cuenta</h2>
+        <p class="sub">Completa tus datos para comenzar.</p>
+        <div class="rejilla">
+          <div class="campo"><label for="r-nombre">Nombre</label><input id="r-nombre" class="ctl" autocomplete="given-name" placeholder="Ej.: María"></div>
+          <div class="campo"><label for="r-apellido">Apellido</label><input id="r-apellido" class="ctl" autocomplete="family-name" placeholder="Ej.: Rodríguez"></div>
+        </div>
+        <div class="campo"><label for="r-correo">Correo electrónico</label><input id="r-correo" type="email" class="ctl" autocomplete="email" placeholder="nombre@ejemplo.com"></div>
+        <div class="campo"><label for="r-clave">Contraseña</label><input id="r-clave" type="password" class="ctl" autocomplete="new-password" placeholder="Crea una contraseña segura" aria-describedby="r-clave-ayuda"><span class="pista" id="r-clave-ayuda">Mínimo 8 caracteres, con mayúscula, minúscula y número.</span></div>
+        <div class="campo"><label for="r-confirmar">Confirmar contraseña</label><input id="r-confirmar" type="password" class="ctl" autocomplete="new-password" placeholder="Escríbela de nuevo"></div>
+        <div class="aviso" id="aviso-registro" role="alert"></div>
+        <button class="btn btn-brote" type="submit">Crear cuenta</button>
+        <p class="auth-alt">¿Ya tienes cuenta? <a href="#login">Iniciar sesión</a></p>
+      </form>
+    </div>`;
+
+  /* ---------- Censo ---------- */
+  V.censo = () => {
+    const fincas = misFincas();
+    const filtro = V.censo.filtro && finca(V.censo.filtro) ? V.censo.filtro : "";
+    const filas = ordenar(misCensos()).filter((c) => !filtro || c.fincaId === filtro);
+    const preFinca = V.censo.fincaInicial && finca(V.censo.fincaInicial) ? V.censo.fincaInicial : fincas[0]?.id;
+    return `
+    <h1 class="titulo-vista" id="t-censo">Censo</h1>
+    <p class="bajada">Sube el video de tu vuelo y consulta los censos anteriores.</p>
+    <form class="panel panel-solido nuevo" id="form-censo" novalidate>
+      <h2>Nuevo censo</h2>
+      ${!fincas.length ? `<p class="nota">Primero registra una finca para poder guardar censos. <a href="#fincas/nueva" style="color:inherit;font-weight:600">Registrar finca</a></p>` : ""}
+      <div class="nuevo-grid">
+        <div>
+          <div class="campo"><label for="c-finca">Finca</label>${sel("c-finca", fincas.map((f) => [f.id, f.nombre]), preFinca, fincas.length ? null : "Sin fincas")}</div>
+          <div class="campo"><label for="c-fecha">Fecha del vuelo</label><input id="c-fecha" type="date" class="ctl" value="${hoyISO()}" max="${hoyISO()}"></div>
+          <div class="campo"><label for="c-nota">Nota <span class="tenue">(opcional)</span></label><textarea id="c-nota" class="ctl" maxlength="300" placeholder="Ej.: potrero norte, vuelo de la mañana"></textarea></div>
+        </div>
+        <div>
+          <label class="zona" id="zona" for="c-video" tabindex="0">
+            <span class="zona-ico">${ico("subir")}</span>
+            <strong id="zona-titulo">Arrastra el video aquí</strong>
+            <em id="zona-sub">o haz click para elegirlo. Formatos MP4 o MOV</em>
+          </label>
+          <input id="c-video" type="file" accept="video/mp4,video/quicktime,.mp4,.mov,image/*" hidden>
+          <div class="zona-acciones">
+            <button type="button" class="btn btn-oscuro btn-sm" id="b-cancelar" hidden>Cancelar subida</button>
+            <button type="submit" class="btn btn-claro btn-sm" id="b-contar">Iniciar conteo</button>
+          </div>
+        </div>
+      </div>
+      <div class="aviso" id="aviso" role="alert"></div>
+      <div class="progreso" id="progreso" aria-live="polite"><div class="barra" id="barra"><i></i></div><p id="progreso-txt">Subiendo video… 0%</p></div>
+      <p class="nota-demo">Vista de demostración: el conteo se simula en el navegador. En la app real lo hace el servicio de IA. También acepta fotos aéreas (máx. 200 MB).</p>
+    </form>
+    <section class="panel resultado" id="resultado" aria-live="polite"></section>
+    
+    <div class="cabecera" id="historial">
+      <h2 class="titulo-vista">Historial</h2>
+      <div class="filtro"><label for="h-finca">Mostrar finca</label>${sel("h-finca", fincas.map((f) => [f.id, f.nombre]), filtro, "Todas las fincas")}</div>
+    </div>
+    <div class="tabla-caja">
+      <table>
+        <thead><tr><th>Fecha del vuelo</th><th>Finca</th><th>Video</th><th class="num">Bovinos contados</th><th>Estado</th><th><span class="sr">Acciones</span></th></tr></thead>
+        <tbody>${filas.length ? filas.map((c) => `<tr class="${c.id === V.censo.resaltar ? "resaltada" : ""}">
+          <td>${fechaCorta(c.fechaVuelo)}</td>
+          <td>${esc(finca(c.fincaId)?.nombre)}</td>
+          <td>${esc(c.video)}${c.duracion != null ? `<small>Duración ${duracion(c.duracion)}</small>` : ""}</td>
+          <td class="num">${c.bovinos ?? "—"}</td>
+          <td>${estadoCenso(c)}</td>
+          <td><a class="btn-tabla" href="#censo/${c.id}">${c.estado === "completado" ? "Ver resultado" : "Ver detalle"}</a></td>
+        </tr>`).join("") : `<tr><td colspan="6" class="vacio">${filtro ? "Esta finca todavía no tiene censos. Sube su primer video arriba." : "Todavía no hay censos. Sube tu primer video arriba."}</td></tr>`}</tbody>
+      </table>
+    </div>`;
+  };
+
+  function htmlResultado(c) {
+    const total = pesoTotal(c), reg = registrados(c.fincaId), dif = c.bovinos - reg;
+    return `
+      <div class="resultado-top">
+        <div><h3>Censo n.º ${c.id} registrado</h3><p class="meta">${esc(finca(c.fincaId)?.nombre)} · vuelo del ${fechaLarga(c.fechaVuelo)} · ${esc(c.video)}</p></div>
+        <div class="acciones" style="display:flex;gap:10px;flex-wrap:wrap"><a class="btn btn-brote btn-sm" href="#censo/${c.id}">Ver ficha del censo</a><button class="btn btn-oscuro btn-sm" type="button" data-accion="cerrar-resultado">Cerrar</button></div>
+      </div>
+      <div class="resultado-datos">
+        <dl class="dato"><dt>Detectados en el video</dt><dd>${c.bovinos}</dd></dl>
+        <dl class="dato"><dt>Registrados en la finca</dt><dd>${reg}</dd></dl>
+        <dl class="dato"><dt>Diferencia</dt><dd class="${dif === 0 ? "cero" : "pos"}">${signo(dif)}</dd></dl>
+        <dl class="dato"><dt>Peso estimado por res</dt><dd>${c.peso}<small>kg · rango ${c.pesoMin}–${c.pesoMax} kg</small></dd></dl>
+      </div>
+      <p class="frase">${fraseRegistro(dif)} Peso total estimado: <b>${num(total)} kg</b>.</p>`;
+  }
+
+  V.censoDetalle = (id) => {
+    const c = censo(id);
+    if (!c) return noEncontrado("Censo no encontrado", "#censo/historial", "Volver al historial");
+    const f = finca(c.fincaId), reg = registrados(c.fincaId);
+    const total = pesoTotal(c);
+    const difManual = c.conteoManual != null && c.bovinos != null ? c.bovinos - c.conteoManual : null;
+    return `
+    ${migas([["Censo", "#censo"], ["Historial", "#censo/historial"], [`Censo n.º ${c.id}`]])}
+    <div class="cab-vista">
+      <div><h1 class="titulo-vista">Censo n.º ${c.id}</h1><p class="bajada">${esc(f.nombre)} · vuelo del ${fechaLarga(c.fechaVuelo)} &nbsp;${estadoCenso(c)}</p></div>
+      <div class="acciones"><a class="btn btn-oscuro" href="#finca/${f.id}">Ver finca y bovinos</a><a class="btn btn-oscuro" href="#finca/${f.id}/panel">Panel de la finca</a></div>
+    </div>
+    ${c.estado !== "completado" ? `<div class="panel panel-solido panel-pad bloque"><h2>No se pudo procesar este video</h2><p class="sub">${esc(c.nota || "El servicio de IA no devolvió un resultado.")} Vuelve a subirlo desde Censo; si el archivo está dañado, expórtalo de nuevo desde el dron.</p><a class="btn btn-brote" href="#censo" data-censar="${f.id}" style="margin-top:16px">Subir de nuevo</a></div>` : `
+    <section class="panel panel-pad bloque" aria-label="Resultados del conteo">
+      <div class="cifras">
+        ${cifra("Conteo de la IA", c.bovinos, "animales", `Registrados en la finca: ${reg} (${signo(c.bovinos - reg)})`)}
+        ${cifra("Peso estimado por res", c.peso, "kg", `Rango ${c.pesoMin}–${c.pesoMax} kg`)}
+        ${cifra("Peso total estimado", num(total), "kg", `Entre ${num(c.pesoMin * c.bovinos)} y ${num(c.pesoMax * c.bovinos)} kg`)}
+        ${cifra("Conteo manual", c.conteoManual ?? "—", c.conteoManual != null ? "animales" : "", difManual == null ? "Sin registrar" : `Diferencia IA − manual: ${signo(difManual)}`)}
+      </div>
+      <p class="frase">${fraseRegistro(c.bovinos - reg)}</p>
+    </section>
+    <form class="panel panel-solido panel-pad bloque form" id="f-manual" novalidate style="max-width:none">
+      <h2>Conteo manual</h2>
+      <p class="sub">Registra cuántos animales contaste tú en el mismo recorrido, para compararlo con el de la IA.</p>
+      ${difManual != null ? `<p class="frase">${fraseManual(difManual)}</p>` : ""}
+      <div class="form-linea linea-2">
+        <div class="campo"><label for="m-valor">Animales contados</label><input id="m-valor" type="number" min="0" step="1" class="ctl" value="${c.conteoManual ?? ""}" inputmode="numeric"></div>
+        <button class="btn btn-claro" type="submit">${c.conteoManual != null ? "Actualizar" : "Guardar"}</button>
+      </div>
+      <div class="aviso" id="aviso-manual" role="alert"></div>
+    </form>`}
+    <section class="panel panel-solido panel-pad bloque">
+      <h2>Información del censo</h2>
+      <dl class="dl" style="margin-top:16px">
+        <dt>Finca</dt><dd><a class="fila-link" href="#finca/${f.id}">${esc(f.nombre)}</a></dd>
+        <dt>Fecha del vuelo</dt><dd>${fechaLarga(c.fechaVuelo)}</dd>
+        <dt>Video</dt><dd>${esc(c.video)}${c.duracion != null ? ` · ${duracion(c.duracion)}` : ""}</dd>
+        <dt>Estado</dt><dd>${estadoCenso(c)}</dd>
+        <dt>Tiempo de análisis</dt><dd>${tiempo(c.tiempo)}</dd>
+        <dt>Modelo de IA</dt><dd>${esc(c.modelo || "—")}</dd>
+        <dt>Nota</dt><dd>${esc(c.nota || "—")}</dd>
+      </dl>
+    </section>`;
+  };
+
+  /* ---------- Fincas ---------- */
+  V.fincas = () => {
+    const todas = misFincas();
+    const q = normal(V.fincas.q || ""), dep = V.fincas.dep || "";
+    const deps = [...new Set(todas.map((f) => f.departamento).filter(Boolean))].sort();
+    const lista = todas.filter((f) => (!q || normal(`${f.nombre} ${f.municipio} ${f.departamento} ${f.direccion}`).includes(q)) && (!dep || f.departamento === dep));
+    return `
+    <h1 class="titulo-vista">Fincas</h1>
+    <p class="bajada">Elige una finca para llevar el control de sus bovinos.</p>
+    ${todas.length > 1 ? `<div class="herramientas" style="margin-top:22px;max-width:720px">
+      <div class="buscar">${ico("buscar")}<label class="sr" for="q-finca">Buscar finca</label><input id="q-finca" class="ctl" type="search" placeholder="Buscar por nombre o municipio" value="${esc(V.fincas.q || "")}"></div>
+      ${sel("dep-finca", deps, dep, "Todos los departamentos")}
+    </div>` : ""}
+    <div class="fincas">
+      ${lista.map((f) => {
+        const ul = ultimoDe(f.id), reg = registrados(f.id);
+        return `<a class="finca" href="#finca/${f.id}">
+          <div class="finca-marco">
+            <div><h3>${esc(f.nombre)}</h3><p class="lugar">${ico("pin")}${esc(lugar(f) || "Sin ubicación")}</p></div>
+            <dl class="finca-cifras">
+              <div><dt>Registrados</dt><dd>${reg}</dd></div>
+              <div><dt>Último conteo</dt><dd>${ul ? ul.bovinos : "—"}</dd></div>
+            </dl>
+            <p class="finca-pie">${ul ? `Vuelo del <b>${fechaCorta(ul.fechaVuelo)}</b> · diferencia <b>${signo(ul.bovinos - reg)}</b>` : "Sin censos todavía"}</p>
+          </div>
+        </a>`;
+      }).join("")}
+      ${lista.length === 0 && todas.length ? `<div class="finca" style="cursor:default"><div class="finca-marco" style="justify-content:center;text-align:center"><strong style="color:var(--crema)">Ninguna finca coincide</strong><p class="sub">Prueba con otro nombre o quita el filtro.</p><button class="btn-texto" data-accion="limpiar-fincas">Limpiar filtros</button></div></div>` : ""}
+      <a class="finca finca-nueva" href="#fincas/nueva">
+        <div class="finca-marco">
+          <span class="zona-ico">${ico("mas")}</span>
+          <strong>${todas.length ? "Agregar finca" : "Registra tu primera finca"}</strong>
+          <p>${todas.length ? "Registra otra finca para censar sus potreros." : "Con una finca registrada ya puedes subir censos y registrar bovinos."}</p>
+        </div>
+      </a>
+    </div>
+    ${todas.length ? "" : `<p class="bajada" style="font-size:1rem">¿Quieres ver cómo funciona primero? <button class="btn-texto" data-accion="ejemplo">Cargar datos de ejemplo</button></p>`}`;
+  };
+
+  V.fincaNueva = () => `
+    ${migas([["Fincas", "#fincas"], ["Registrar finca"]])}
+    <h1 class="titulo-vista">Registrar finca</h1>
+    <p class="bajada">Ingresa los datos básicos de la propiedad ganadera.</p>
+    <form class="panel panel-solido panel-pad bloque form" id="f-finca" novalidate>
+      <fieldset><legend>Identificación</legend><p>El nombre permite reconocer esta propiedad en tus registros.</p>
+        <div class="campo"><label for="f-nombre">Nombre de la finca</label><input id="f-nombre" class="ctl" maxlength="60" placeholder="Ej.: La Vitrina" autocomplete="organization"></div>
+      </fieldset>
+      <fieldset><legend>Ubicación</legend><p>La ubicación ayuda a diferenciar y encontrar tus propiedades.</p>
+        <div class="rejilla">
+          <div class="campo"><label for="f-mun">Municipio</label><input id="f-mun" class="ctl" maxlength="60" placeholder="Ej.: Villavicencio" autocomplete="address-level2"></div>
+          <div class="campo"><label for="f-dep">Departamento</label><input id="f-dep" class="ctl" maxlength="60" placeholder="Ej.: Meta" autocomplete="address-level1"></div>
+          <div class="campo ancho"><label for="f-dir">Dirección o vereda <span class="tenue">(opcional)</span></label><input id="f-dir" class="ctl" maxlength="120" placeholder="Ej.: Vereda El Hachón" autocomplete="street-address"></div>
+        </div>
+      </fieldset>
+      <div class="aviso" id="aviso-finca" role="alert" style="margin-bottom:16px"></div>
+      <div class="form-acciones"><button class="btn btn-brote" type="submit">Guardar finca</button><a class="btn btn-oscuro" href="#fincas">Cancelar</a></div>
+    </form>`;
+
+  V.finca = (id) => {
+    const f = finca(id);
+    if (!f) return noEncontrado("Finca no encontrada", "#fincas", "Volver a mis fincas");
+    const animales = animalesDe(id), censos = censosDe(id), ul = ultimoDe(id);
+    const st = V.finca.filtros[id] || (V.finca.filtros[id] = { q: "", sexo: "", estado: "" });
+    const q = normal(st.q);
+    const lista = animales.filter((a) => (!q || normal(`${a.numero} ${a.sexo} ${a.estadoGeneral} ${a.estadoReproductivo} ${a.enfermedad}`).includes(q))
+      && (!st.sexo || a.sexo === st.sexo) && (!st.estado || a.estadoGeneral === st.estado));
+    const machos = animales.filter((a) => a.sexo === "Macho").length;
+    return `
+    ${migas([["Fincas", "#fincas"], [f.nombre]])}
+    <div class="cab-vista">
+      <div><h1 class="titulo-vista">${esc(f.nombre)}</h1><p class="bajada">${esc(lugar(f))}${f.direccion ? ` · ${esc(f.direccion)}` : ""}</p></div>
+      <div class="acciones"><a class="btn btn-oscuro" href="#finca/${id}/panel">${ico("panel")}Ver panel</a><a class="btn btn-brote" href="#censo" data-censar="${id}">Nuevo censo</a></div>
+    </div>
+    <section class="panel panel-pad bloque" aria-label="Resumen de la finca">
+      <div class="cifras">
+        ${cifra("Registrados en la finca", animales.length, "", `${machos} machos · ${animales.length - machos} hembras`)}
+        ${cifra("Último conteo del dron", ul ? ul.bovinos : "—", "", ul ? `Vuelo del ${fechaCorta(ul.fechaVuelo)}` : "Sin censos todavía")}
+        ${cifra("Diferencia con el registro", ul ? signo(ul.bovinos - animales.length) : "—", "", ul ? "Detectados − registrados" : "")}
+        ${cifra("Censos realizados", censos.length)}
+      </div>
+      ${ul ? `<p class="frase">${fraseRegistro(ul.bovinos - animales.length)}</p>` : ""}
+    </section>
+
+    <section class="panel panel-solido panel-pad bloque" aria-labelledby="t-censos-finca">
+      <div class="bloque-cab"><div><h2 id="t-censos-finca">Censos (${censos.length})</h2><p>Fecha, estado y resultados de cada censo de esta finca.</p></div><a class="btn btn-claro btn-sm" href="#censo" data-censar="${id}">${ico("mas")}Nuevo censo</a></div>
+      ${censos.length ? `<div class="tabla-caja"><table>
+        <thead><tr><th>Censo</th><th>Fecha del vuelo</th><th>Estado</th><th class="num">Reses</th><th class="num">Peso prom.</th><th class="num">Peso total</th><th class="num">Conteo manual</th><th>Nota</th></tr></thead>
+        <tbody>${censos.map((c) => `<tr><td><a class="fila-link" href="#censo/${c.id}">n.º ${c.id}</a></td><td>${fechaCorta(c.fechaVuelo)}</td><td>${estadoCenso(c)}</td><td class="num">${c.bovinos ?? "—"}</td><td class="num">${c.peso != null ? `${c.peso} kg` : "—"}</td><td class="num">${pesoTotal(c) != null ? `${num(pesoTotal(c))} kg` : "—"}</td><td class="num">${c.conteoManual ?? "—"}</td><td class="nota-celda">${esc(c.nota || "—")}</td></tr>`).join("")}</tbody>
+      </table></div>` : `<div class="vacio-bloque"><h3>Esta finca aún no tiene censos</h3><p>Sube un video del dron para iniciar el primer censo.</p><a class="btn btn-brote" href="#censo" data-censar="${id}">Subir video</a></div>`}
+    </section>
+
+    <section class="panel panel-solido panel-pad bloque" aria-labelledby="t-animales">
+      <div class="bloque-cab"><div><h2 id="t-animales">Bovinos registrados</h2><p>Inventario de ganado de la finca.</p></div><a class="btn btn-claro btn-sm" href="#finca/${id}/bovino/nuevo">${ico("mas")}Registrar bovino</a></div>
+      ${animales.length ? `
+      <div class="herramientas">
+        <div class="buscar">${ico("buscar")}<label class="sr" for="q-animal">Buscar bovinos</label><input id="q-animal" class="ctl" type="search" placeholder="Buscar por número, sexo o estado" value="${esc(st.q)}"></div>
+        ${sel("fs-sexo", ["Hembra", "Macho"], st.sexo, "Todos los sexos")}
+        ${sel("fs-estado", ESTADOS_GENERALES, st.estado, "Todos los estados")}
+      </div>
+      <div id="tabla-animales">${tablaAnimales(lista, id)}</div>`
+      : `<div class="vacio-bloque"><h3>Esta finca aún no tiene bovinos</h3><p>Registra el primer bovino para comenzar a organizar su información y seguimiento.</p><a class="btn btn-brote" href="#finca/${id}/bovino/nuevo">Registrar bovino</a></div>`}
+    </section>`;
+  };
+  V.finca.filtros = {};
+
+  function tablaAnimales(lista, fid) {
+    if (!lista.length) return `<div class="vacio-bloque"><h3>No encontramos bovinos con esos filtros</h3><p>Prueba con otro término o limpia los filtros para ver el inventario completo.</p><button class="btn btn-oscuro btn-sm" data-accion="limpiar-animales" data-finca="${fid}">Limpiar filtros</button></div>`;
+    return `<p class="pista" style="margin-bottom:8px">${plural(lista.length, "bovino", "bovinos")}</p><div class="tabla-caja" style="max-height:520px;overflow:auto"><table>
+      <thead><tr><th>Número</th><th>Sexo</th><th>Edad</th><th class="num">Peso</th><th>Estado reproductivo</th><th>Estado general</th><th><span class="sr">Acciones</span></th></tr></thead>
+      <tbody>${lista.map((a) => `<tr><td><a class="fila-link" href="#bovino/${a.id}">${esc(a.numero)}</a></td><td>${esc(a.sexo)}</td><td>${esc(edad(a.nacimiento)) || `<span class="tenue">Sin registrar</span>`}</td><td class="num">${a.peso ? `${a.peso} kg` : "—"}</td><td>${esc(a.estadoReproductivo) || `<span class="tenue">Sin especificar</span>`}</td><td>${estadoAnimal(a.estadoGeneral)}</td><td><a class="btn-tabla" href="#bovino/${a.id}">Ver ficha</a></td></tr>`).join("")}</tbody>
+    </table></div>`;
+  }
+
+  V.panelFinca = (id) => {
+    const f = finca(id);
+    if (!f) return noEncontrado("Finca no encontrada", "#fincas", "Volver a mis fincas");
+    const censos = censosDe(id), comp = censos.filter((c) => c.estado === "completado"), ul = comp[0];
+    const tiempos = comp.map((c) => c.tiempo).filter((t) => t != null);
+    const prom = tiempos.length ? tiempos.reduce((a, b) => a + b, 0) / tiempos.length : null;
+    const dif = ul && ul.conteoManual != null ? ul.bovinos - ul.conteoManual : null;
+    return `
+    ${migas([["Fincas", "#fincas"], [f.nombre, `#finca/${id}`], ["Panel"]])}
+    <div class="cab-vista"><div><h1 class="titulo-vista">Panel de ${esc(f.nombre)}</h1><p class="bajada">Resumen y evolución de los censos de la finca.</p></div><div class="acciones"><a class="btn btn-oscuro" href="#finca/${id}">Ver finca y bovinos</a></div></div>
+    <section class="panel panel-pad bloque">
+      <div class="cifras">
+        ${cifra("Animales registrados", registrados(id))}
+        ${cifra("Censos realizados", censos.length)}
+        ${cifra("Tiempo promedio de análisis", tiempo(prom))}
+      </div>
+    </section>
+    ${ul ? `
+    <section class="panel panel-pad bloque" aria-labelledby="t-ult">
+      <div class="bloque-cab"><h2 id="t-ult">Último censo</h2><a class="btn btn-oscuro btn-sm" href="#censo/${ul.id}">Ver detalle</a></div>
+      <div class="cifras">
+        ${cifra("Conteo de la IA", ul.bovinos, "animales", `Vuelo del ${fechaCorta(ul.fechaVuelo)}`)}
+        ${cifra("Peso total estimado", num(pesoTotal(ul)), "kg", `${ul.peso} kg por res en promedio`)}
+        ${cifra("Conteo manual", ul.conteoManual ?? "—", ul.conteoManual != null ? "animales" : "", ul.conteoManual == null ? "Sin registrar" : "")}
+        ${cifra("Diferencia (IA − manual)", signo(dif))}
+      </div>
+    </section>
+    <section class="panel panel-solido panel-pad bloque" aria-labelledby="t-evo">
+      <h2 id="t-evo">Evolución del conteo</h2>
+      <p class="sub">Conteo de la IA frente al conteo manual en cada censo. Los censos sin conteo manual solo muestran el punto de la IA.</p>
+      <div class="leyenda" aria-hidden="true"><span><i style="background:${COLOR_IA}"></i>Conteo de la IA</span><span><i style="background:${COLOR_MANUAL}"></i>Conteo manual</span></div>
+      <div class="grafico" id="grafico" data-finca="${id}"></div>
+      <p class="pista" style="margin-top:10px">Los mismos datos están en la tabla de censos de la <a href="#finca/${id}" style="color:var(--brote)">ficha de la finca</a>.</p>
+    </section>` : `
+    <div class="panel panel-solido bloque vacio-bloque"><h3>Aún no hay censos completados en esta finca</h3><p>Sube un video del dron para ver aquí la evolución del conteo.</p><a class="btn btn-brote" href="#censo" data-censar="${id}">Nuevo censo</a></div>`}`;
+  };
+
+  function dibujarGrafico(el) {
+    const datos = censosDe(el.dataset.finca).filter((c) => c.estado === "completado").reverse();
+    const W = Math.max(320, Math.round(el.clientWidth || 720)), H = 280, m = { t: 20, r: 74, b: 34, l: 40 };
+    const valores = datos.flatMap((d) => [d.bovinos, d.conteoManual]).filter((v) => v != null);
+    const maxV = Math.max(...valores), minV = Math.min(...valores);
+    const paso = Math.max(1, Math.ceil((maxV - minV + 4) / 4));
+    const y0 = Math.max(0, Math.floor((minV - paso) / paso) * paso), y1 = Math.ceil((maxV + 1) / paso) * paso;
+    const x = (i) => datos.length === 1 ? (m.l + W - m.r) / 2 : m.l + (i * (W - m.l - m.r)) / (datos.length - 1);
+    const y = (v) => m.t + (H - m.t - m.b) * (1 - (v - y0) / (y1 - y0 || 1));
+    const ticks = []; for (let v = y0; v <= y1; v += paso) ticks.push(v);
+    const camino = (k) => {
+      let d = "", abierto = false;
+      datos.forEach((p, i) => { if (p[k] == null) { abierto = false; return; } d += `${abierto ? "L" : "M"}${x(i).toFixed(1)} ${y(p[k]).toFixed(1)}`; abierto = true; });
+      return d;
+    };
+    const ultimo = (k) => { for (let i = datos.length - 1; i >= 0; i--) if (datos[i][k] != null) return i; return -1; };
+    const iIA = ultimo("bovinos"), iMan = ultimo("conteoManual");
+    let yIA = iIA >= 0 ? y(datos[iIA].bovinos) : 0, yMan = iMan >= 0 ? y(datos[iMan].conteoManual) : 0;
+    if (iMan >= 0 && Math.abs(yIA - yMan) < 14) { const mid = (yIA + yMan) / 2; yIA = mid - 8; yMan = mid + 8; if (datos[iIA].bovinos < datos[iMan].conteoManual) [yIA, yMan] = [yMan, yIA]; }
+    el.innerHTML = `
+      <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Conteo de la IA y conteo manual por censo">
+        ${ticks.map((v) => `<line class="g-rejilla" x1="${m.l}" x2="${W - m.r}" y1="${y(v)}" y2="${y(v)}"/><text class="g-eje" x="${m.l - 8}" y="${y(v) + 4}" text-anchor="end">${v}</text>`).join("")}
+        ${datos.map((p, i) => `<text class="g-eje" x="${x(i)}" y="${H - 10}" text-anchor="middle">${fechaCorta(p.fechaVuelo).replace(/ \d{4}$/, "")}</text>`).join("")}
+        <line class="g-guia" id="g-guia" x1="0" x2="0" y1="${m.t}" y2="${H - m.b}" opacity="0"/>
+        <path class="g-linea" d="${camino("bovinos")}" stroke="${COLOR_IA}"/>
+        <path class="g-linea" d="${camino("conteoManual")}" stroke="${COLOR_MANUAL}"/>
+        ${datos.map((p, i) => `<circle class="g-punto" cx="${x(i)}" cy="${y(p.bovinos)}" r="5" fill="${COLOR_IA}"/>${p.conteoManual != null ? `<circle class="g-punto" cx="${x(i)}" cy="${y(p.conteoManual)}" r="5" fill="${COLOR_MANUAL}"/>` : ""}`).join("")}
+        ${iIA >= 0 ? `<text class="g-etq" x="${x(iIA) + 10}" y="${yIA + 4}">IA ${datos[iIA].bovinos}</text>` : ""}
+        ${iMan >= 0 ? `<text class="g-etq" x="${x(iMan) + 10}" y="${yMan + 4}">Manual ${datos[iMan].conteoManual}</text>` : ""}
+        ${datos.map((p, i) => { const w = datos.length === 1 ? W - m.l - m.r : (W - m.l - m.r) / (datos.length - 1); return `<rect x="${x(i) - w / 2}" y="${m.t}" width="${w}" height="${H - m.t - m.b}" fill="transparent" data-i="${i}"/>`; }).join("")}
+      </svg>
+      <div class="g-tip" id="g-tip" role="tooltip"></div>`;
+    const tip = $("#g-tip", el), guia = $("#g-guia", el), svg = $("svg", el);
+    svg.addEventListener("pointermove", (e) => {
+      const r = e.target.closest("rect[data-i]"); if (!r) return;
+      const i = Number(r.dataset.i), p = datos[i];
+      guia.setAttribute("x1", x(i)); guia.setAttribute("x2", x(i)); guia.setAttribute("opacity", 1);
+      tip.innerHTML = `<b>Censo n.º ${p.id} · ${fechaCorta(p.fechaVuelo)}</b><div><span><i style="background:${COLOR_IA}"></i>Conteo de la IA</span><span>${p.bovinos}</span></div><div><span><i style="background:${COLOR_MANUAL}"></i>Conteo manual</span><span>${p.conteoManual ?? "Sin registrar"}</span></div>`;
+      const caja = el.getBoundingClientRect(), esc_ = caja.width / W;
+      let left = x(i) * esc_ + 14; if (left + 190 > caja.width) left = x(i) * esc_ - 200;
+      tip.style.left = `${Math.max(0, left)}px`; tip.style.top = `${m.t * esc_}px`; tip.classList.add("ver");
+    });
+    svg.addEventListener("pointerleave", () => { tip.classList.remove("ver"); guia.setAttribute("opacity", 0); });
+  }
+
+  /* ---------- Bovinos ---------- */
+  V.bovinoForm = (fid, aid) => {
+    const a = aid ? animal(aid) : null;
+    if (aid && !a) return noEncontrado("Bovino no encontrado", "#fincas", "Volver a mis fincas");
+    const f = finca(a ? a.fincaId : fid);
+    if (!f) return noEncontrado("Finca no encontrada", "#fincas", "Volver a mis fincas");
+    const v = a || {};
+    return `
+    ${migas([["Fincas", "#fincas"], [f.nombre, `#finca/${f.id}`], a ? [a.numero, `#bovino/${a.id}`] : null, [a ? "Editar" : "Registrar bovino"]].filter(Boolean))}
+    <h1 class="titulo-vista">${a ? `Editar bovino ${esc(a.numero)}` : "Registrar bovino"}</h1>
+    <p class="bajada">Completa los datos principales. Los campos opcionales puedes agregarlos ahora o más adelante.</p>
+    <form class="panel panel-solido panel-pad bloque form" id="f-bovino" data-finca="${f.id}" data-animal="${a ? a.id : ""}" novalidate>
+      <fieldset><legend>Datos de identificación</legend><p>El número debe ser único dentro de la finca.</p>
+        <div class="rejilla">
+          <div class="campo"><label for="b-numero">Número del animal</label><input id="b-numero" class="ctl" maxlength="20" placeholder="Ej.: ${esc(f.nombre.slice(0, 2).toUpperCase())}-${String(registrados(f.id) + 1).padStart(3, "0")}" value="${esc(v.numero)}"></div>
+          <div class="campo"><label for="b-sexo">Sexo</label>${sel("b-sexo", ["Hembra", "Macho"], v.sexo, "Seleccionar…")}</div>
+          <div class="campo"><label for="b-nac">Fecha de nacimiento <span class="tenue">(opcional)</span></label><input id="b-nac" type="date" class="ctl" max="${hoyISO()}" value="${esc(v.nacimiento)}"></div>
+          <div class="campo"><label for="b-peso">Peso en kg <span class="tenue">(opcional)</span></label><input id="b-peso" type="number" min="1" step="0.1" class="ctl" inputmode="decimal" placeholder="Ej.: 380" value="${v.peso ?? ""}"></div>
+        </div>
+      </fieldset>
+      <fieldset><legend>Salud y seguimiento <span class="tenue" style="font-weight:400;font-size:.9rem">opcional</span></legend><p>Estado actual del animal.</p>
+        <div class="rejilla">
+          <div class="campo"><label for="b-repro">Estado reproductivo</label>${sel("b-repro", ESTADOS_REPRODUCTIVOS, v.estadoReproductivo, "Seleccionar…")}</div>
+          <div class="campo"><label for="b-general">Estado general</label>${sel("b-general", ESTADOS_GENERALES, v.estadoGeneral, "Seleccionar…")}</div>
+          <div class="campo ancho"><label for="b-enf">Enfermedad</label><input id="b-enf" class="ctl" maxlength="120" placeholder="Indica una enfermedad si aplica" value="${esc(v.enfermedad)}"></div>
+        </div>
+      </fieldset>
+      <fieldset><legend>Fotografía <span class="tenue" style="font-weight:400;font-size:.9rem">opcional</span></legend><p>Una foto ayuda a reconocer al animal en el potrero (máx. 5 MB).</p>
+        <div class="campo"><label for="b-foto">Foto del animal</label><input id="b-foto" type="file" accept="image/*" class="ctl"></div>
+        <img id="b-foto-prev" class="foto-prev" alt="Vista previa de la foto" ${v.foto ? `src="${v.foto}"` : "hidden"}>
+      </fieldset>
+      <div class="aviso" id="aviso-bovino" role="alert" style="margin-bottom:16px"></div>
+      <div class="form-acciones"><button class="btn btn-brote" type="submit">${a ? "Guardar cambios" : "Registrar bovino"}</button><a class="btn btn-oscuro" href="${a ? `#bovino/${a.id}` : `#finca/${f.id}`}">Cancelar</a></div>
+    </form>`;
+  };
+
+  V.bovino = (id) => {
+    const a = animal(id);
+    if (!a) return noEncontrado("Bovino no encontrado", "#fincas", "Volver a mis fincas");
+    const f = finca(a.fincaId);
+    const apl = db.aplicaciones.filter((p) => p.animalId === id).map((p) => ({ ...p, nombre: vacuna(p.vacunaId)?.nombre || "Vacuna eliminada" })).sort((x, y) => y.fecha.localeCompare(x.fecha));
+    const q = normal(V.bovino.q || "");
+    const filtradas = apl.filter((p) => !q || normal(`${p.nombre} ${p.fecha} ${fechaCorta(p.fecha)}`).includes(q));
+    return `
+    ${migas([["Fincas", "#fincas"], [f.nombre, `#finca/${f.id}`], [a.numero]])}
+    <div class="cab-vista">
+      <div><h1 class="titulo-vista">Bovino ${esc(a.numero)}</h1><p class="bajada">Información de identificación, salud y vacunación.</p></div>
+      <div class="acciones" id="acciones-bovino"><a class="btn btn-oscuro" href="#bovino/${id}/editar">Editar</a><button class="btn btn-oscuro" type="button" data-accion="pedir-eliminar">${ico("basura")}Eliminar</button></div>
+    </div>
+    <section class="panel panel-solido panel-pad bloque">
+      <div class="ficha-grid">
+        ${a.foto ? `<img class="foto" src="${a.foto}" alt="Foto del bovino ${esc(a.numero)}">` : `<div class="foto" role="img" aria-label="Sin foto">${ico("vaca")}</div>`}
+        <dl class="dl">
+          <dt>Finca</dt><dd><a class="fila-link" href="#finca/${f.id}">${esc(f.nombre)}</a></dd>
+          <dt>Sexo</dt><dd>${esc(a.sexo || "Sin registrar")}</dd>
+          <dt>Fecha de nacimiento</dt><dd>${a.nacimiento ? `${fechaLarga(a.nacimiento)} · ${edad(a.nacimiento)}` : "Sin registrar"}</dd>
+          <dt>Peso</dt><dd>${a.peso ? `${a.peso} kg` : "Sin registrar"}</dd>
+          <dt>Estado reproductivo</dt><dd>${esc(a.estadoReproductivo || "—")}</dd>
+          <dt>Estado general</dt><dd>${estadoAnimal(a.estadoGeneral)}</dd>
+          <dt>Enfermedad</dt><dd>${esc(a.enfermedad || "—")}</dd>
+        </dl>
+      </div>
+    </section>
+    <section class="panel panel-solido panel-pad bloque" aria-labelledby="t-vacunas">
+      <div class="bloque-cab"><div><h2 id="t-vacunas">Vacunas</h2><p>Registra cada aplicación con su fecha real.</p></div></div>
+      <div class="cifras" style="margin-bottom:22px">
+        ${cifra("Aplicaciones registradas", apl.length)}
+        ${cifra("Última aplicación", apl[0] ? fechaCorta(apl[0].fecha) : "Ninguna", "", apl[0] ? esc(apl[0].nombre) : "")}
+        ${cifra("Tipos en el catálogo", db.vacunas.length)}
+      </div>
+      <form class="form" id="f-vacuna" novalidate style="max-width:none">
+        <h3 style="font-size:1.15rem">Registrar vacunación</h3>
+        <div class="form-linea linea-3">
+          <div class="campo"><label for="v-vacuna">Vacuna</label>${sel("v-vacuna", db.vacunas.map((v) => [v.id, v.nombre]), "", "Seleccionar…")}</div>
+          <div class="campo"><label for="v-fecha">Fecha de aplicación</label><input id="v-fecha" type="date" class="ctl" max="${hoyISO()}" value="${hoyISO()}"></div>
+          <button class="btn btn-claro" type="submit">Registrar vacunación</button>
+        </div>
+        <div class="aviso" id="aviso-vacuna" role="alert"></div>
+      </form>
+      <div style="margin-top:14px" id="nueva-vacuna">
+        <button class="btn-texto" type="button" data-accion="mostrar-nueva-vacuna">¿No está en la lista? Agregar vacuna al catálogo</button>
+      </div>
+      <div style="margin-top:26px">
+        <div class="bloque-cab"><h3 style="font-size:1.15rem">Historial de vacunación</h3>
+          ${apl.length ? `<div class="herramientas" style="margin:0;flex:0 1 320px"><div class="buscar">${ico("buscar")}<label class="sr" for="q-vacuna">Buscar en el historial</label><input id="q-vacuna" class="ctl" type="search" placeholder="Buscar vacuna o fecha" value="${esc(V.bovino.q || "")}"></div></div>` : ""}
+        </div>
+        <div id="historial-vacunas">${historialVacunas(apl, filtradas)}</div>
+      </div>
+    </section>`;
+  };
+
+  function historialVacunas(apl, filtradas) {
+    if (!apl.length) return `<div class="vacio-bloque"><h3>Sin vacunas registradas</h3><p>Cuando registres una aplicación, su nombre y fecha aparecerán aquí.</p></div>`;
+    if (!filtradas.length) return `<div class="vacio-bloque"><h3>No hay coincidencias en el historial</h3><p>Prueba con otro nombre de vacuna o fecha.</p></div>`;
+    return `<div class="tabla-caja"><table style="min-width:420px"><thead><tr><th>Vacuna</th><th>Fecha de aplicación</th><th><span class="sr">Acciones</span></th></tr></thead>
+      <tbody>${filtradas.map((p) => `<tr><td>${esc(p.nombre)}</td><td>${fechaCorta(p.fecha)}</td><td><button class="btn-icono" type="button" data-accion="eliminar-aplicacion" data-id="${p.id}" aria-label="Eliminar aplicación de ${esc(p.nombre)} del ${fechaCorta(p.fecha)}">${ico("basura")}</button></td></tr>`).join("")}</tbody></table></div>`;
+  }
+
+  /* ---------- Usuario ---------- */
+  V.usuario = () => {
+    const u = usuario(), fincas = misFincas();
+    const ed = V.usuario.editando;
+    return `
+    <h1 class="titulo-vista">Usuario</h1>
+    <p class="bajada">Consulta la información de tu cuenta y las opciones disponibles.</p>
+    <div class="dos-col">
+      <section class="panel panel-solido perfil" style="margin:0;max-width:none">
+        <div class="perfil-top"><span class="avatar">${esc(iniciales(u))}</span><div><h2>${esc(u.nombre)} ${esc(u.apellido)}</h2><p style="color:var(--texto-suave)">${esc(u.correo)}</p></div></div>
+        ${ed ? `
+        <form class="form" id="f-perfil" novalidate style="margin-top:22px">
+          <div class="rejilla">
+            <div class="campo"><label for="p-nombre">Nombre</label><input id="p-nombre" class="ctl" value="${esc(u.nombre)}" autocomplete="given-name"></div>
+            <div class="campo"><label for="p-apellido">Apellido</label><input id="p-apellido" class="ctl" value="${esc(u.apellido)}" autocomplete="family-name"></div>
+            <div class="campo ancho"><label for="p-correo">Correo electrónico</label><input id="p-correo" type="email" class="ctl" value="${esc(u.correo)}" autocomplete="email"></div>
+          </div>
+          <div class="aviso" id="aviso-perfil" role="alert" style="margin-bottom:14px"></div>
+          <div class="form-acciones"><button class="btn btn-brote" type="submit">Guardar cambios</button><button class="btn btn-oscuro" type="button" data-accion="cancelar-perfil">Cancelar</button></div>
+        </form>` : `
+        <dl>
+          <dt>Nombre</dt><dd>${esc(u.nombre)}</dd>
+          <dt>Apellido</dt><dd>${esc(u.apellido)}</dd>
+          <dt>Correo electrónico</dt><dd>${esc(u.correo)}</dd>
+          <dt>Rol asignado</dt><dd>${esc(u.rol)}</dd>
+          <dt>Fincas</dt><dd>${fincas.length}</dd>
+          <dt>Bovinos registrados</dt><dd>${fincas.reduce((s, f) => s + registrados(f.id), 0)}</dd>
+          <dt>Censos</dt><dd>${misCensos().length}</dd>
+        </dl>
+        <button class="btn btn-oscuro" style="margin-top:24px" data-accion="editar-perfil">Editar información</button>`}
+      </section>
+      <section class="panel panel-solido perfil" style="margin:0;max-width:none">
+        <h2>Seguridad</h2>
+        <ul class="lista-enl" style="margin-top:16px">
+          <li><a href="#usuario" style="cursor:default"><span class="ico">${ico("check")}</span><span><strong>Sesión activa</strong><small>La sesión se guarda en este navegador hasta que la cierres.</small></span></a></li>
+          <li><a href="#usuario" style="cursor:default"><span class="ico">${ico("usuario")}</span><span><strong>Cambio de contraseña</strong><small>Esta opción todavía no está disponible en el servicio de cuenta.</small></span></a></li>
+        </ul>
+        <div class="form-acciones" style="margin-top:22px">
+          <button class="btn btn-brote" data-accion="salir">${ico("salir")}Cerrar sesión</button>
+          ${fincas.length ? "" : `<button class="btn btn-oscuro" data-accion="ejemplo">Cargar datos de ejemplo</button>`}
+        </div>
+      </section>
+    </div>`;
+  };
+
+  function noEncontrado(titulo, ruta, texto) {
+    return `<div class="panel panel-solido vacio-bloque" style="margin-top:40px"><h3>${titulo}</h3><p>Puede que se haya eliminado o que no pertenezca a tu cuenta.</p><a class="btn btn-brote" href="${ruta}">${texto}</a></div>`;
+  }
+
+  /* ================= Router ================= */
+  const PRIVADAS = new Set(["censo", "fincas", "finca", "bovino", "usuario"]);
+  let rutaActual = "";
+
+  function render(opciones = {}) {
+    const hash = location.hash.slice(1) || "inicio";
+    const [r, a, b, c] = hash.split("/");
+    if (PRIVADAS.has(r) && !usuario()) {
+      V.retorno = hash; location.replace("#login"); toast("Inicia sesión para continuar"); return;
+    }
+    if ((r === "login" || r === "registro") && usuario()) { location.replace("#inicio"); return; }
+    cancelarProceso();
+    let html, seccion = r;
+    switch (r) {
+      case "login": html = V.login(); break;
+      case "registro": html = V.registro(); break;
+      case "censo": html = a && a !== "historial" ? V.censoDetalle(a) : V.censo(); break;
+      case "fincas": html = a === "nueva" ? V.fincaNueva() : V.fincas(); break;
+      case "finca": seccion = "fincas"; html = b === "panel" ? V.panelFinca(a) : b === "bovino" && c === "nuevo" ? V.bovinoForm(a, null) : V.finca(a); break;
+      case "bovino": seccion = "fincas"; html = b === "editar" ? V.bovinoForm(null, a) : V.bovino(a); break;
+      case "usuario": html = V.usuario(); break;
+      default: seccion = "inicio"; html = V.inicio();
+    }
+    const vista = $("#vista");
+    vista.innerHTML = `<section class="vista activa${opciones.quieto ? "" : ""}">${html}</section>`;
+    if (opciones.quieto) vista.firstElementChild.style.animation = "none";
+    pintarNav(seccion);
+    const titulos = { inicio: "Inicio", login: "Iniciar sesión", registro: "Crear cuenta", censo: "Censo", fincas: "Fincas", usuario: "Usuario" };
+    document.title = `${titulos[seccion] || "Inicio"} · Biocenso`;
+    despues(r, a);
+    const nuevaRuta = hash;
+    if (!opciones.quieto) {
+      const ancla = (r === "inicio" && a) || (r === "censo" && a === "historial" && "historial");
+      if (ancla) requestAnimationFrame(() => document.getElementById(ancla)?.scrollIntoView({ behavior: "smooth" }));
+      else if (nuevaRuta !== rutaActual) window.scrollTo({ top: 0 });
+    }
+    rutaActual = nuevaRuta;
+  }
+
+  function pintarNav(seccion) {
+    const u = usuario();
+    $("#nav-usuario").innerHTML = u
+      ? `<a href="#usuario" data-ruta="usuario"><span class="avatar" aria-hidden="true">${esc(iniciales(u))}</span>Usuario</a><button class="nav-salir" type="button" data-accion="salir">${ico("salir")}Cerrar sesión</button>`
+      : `<a href="#login" data-ruta="login"><span class="avatar" aria-hidden="true">${ico("usuario").replace("<svg>", `<svg style="width:18px;height:18px">`)}</span>Iniciar sesión</a>`;
+    $$("[data-ruta]").forEach((el) => {
+      const activo = el.dataset.ruta === seccion || (seccion === "registro" && el.dataset.ruta === "login");
+      activo ? el.setAttribute("aria-current", "page") : el.removeAttribute("aria-current");
+    });
+  }
+
+  function despues(r, a) {
+    if (r === "inicio" || !r || !["login", "registro", "censo", "fincas", "finca", "bovino", "usuario"].includes(r)) animarDeteccion();
+    if (r === "censo" && (!a || a === "historial")) prepararCenso();
+    const g = $("#grafico"); if (g) dibujarGrafico(g);
+  }
+
+  /* ---------- Animación de detección ---------- */
+  function animarDeteccion() {
+    const svg = $("#cajas"); if (!svg) return;
+    // Posiciones de los bovinos reales en la toma aérea de ejemplo
+    const cajas = [[212, 97], [211, 114], [139, 121], [157, 129], [220, 134], [117, 139], [155, 146], [226, 152], [216, 166], [189, 181], [232, 202], [284, 196]];
+    svg.innerHTML = cajas.map(([x, y], i) => `<rect class="caja" x="${x - 9}" y="${y - 7}" width="18" height="14" rx="3" style="animation-delay:${(0.5 + i * 0.17).toFixed(2)}s"/>`).join("");
+    const el = $("#contador-num");
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches) { el.textContent = cajas.length; return; }
+    cajas.forEach((_, i) => setTimeout(() => { if (el.isConnected) el.textContent = i + 1; }, 750 + i * 170));
+  }
+
+  /* ---------- Subida y conteo ---------- */
+  let archivo = null, proceso = null;
+
+  function prepararCenso() {
+    archivo = null;
+    const zona = $("#zona");
+    zona.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); $("#c-video").click(); } });
+    ["dragenter", "dragover"].forEach((t) => zona.addEventListener(t, (e) => { e.preventDefault(); zona.classList.add("sobre"); }));
+    ["dragleave", "drop"].forEach((t) => zona.addEventListener(t, (e) => { e.preventDefault(); zona.classList.remove("sobre"); }));
+    zona.addEventListener("drop", (e) => elegirVideo(e.dataTransfer.files[0]));
+    $("#c-video").addEventListener("change", (e) => elegirVideo(e.target.files[0]));
+    V.censo.fincaInicial = null;
+  }
+
+  const aviso = (id, msg) => { const a = $(`#${id}`); if (!a) return; a.textContent = msg || ""; a.classList.toggle("ver", !!msg); };
+
+  function elegirVideo(f) {
+    aviso("aviso", "");
+    if (!f) return;
+    const esVideo = /\.(mp4|mov)$/i.test(f.name) || ["video/mp4", "video/quicktime"].includes(f.type);
+    const esImagen = f.type.startsWith("image/");
+    if (!esVideo && !esImagen) { aviso("aviso", "Ese archivo no es un video MP4 o MOV. Elige el archivo tal como sale del dron."); return; }
+    if (f.size > 200 * 1024 * 1024) { aviso("aviso", "El archivo supera los 200 MB. Recorta el vuelo o expórtalo con menor calidad."); return; }
+    archivo = f;
+    $("#zona").classList.add("con-archivo");
+    $("#zona-titulo").innerHTML = `<span class="archivo">${ico("archivo")}${esc(f.name)}</span>`;
+    $("#zona-sub").textContent = `${(f.size / 1048576).toFixed(1)} MB · haz click para cambiarlo`;
+  }
+
+  function bloquear(si) {
+    ["#c-finca", "#c-fecha", "#c-nota", "#c-video", "#b-contar"].forEach((s) => { const el = $(s); if (el) el.disabled = si; });
+    $("#b-cancelar").hidden = !si;
+    $("#zona").style.pointerEvents = si ? "none" : "";
+  }
+
+  function cancelarProceso() { clearInterval(proceso); clearTimeout(proceso); proceso = null; }
+
+  function iniciarConteo() {
+    aviso("aviso", "");
+    const fincaId = $("#c-finca")?.value, fecha = $("#c-fecha").value, nota = $("#c-nota").value.trim();
+    if (!fincaId) return aviso("aviso", "Elige la finca donde volaste el dron. Si no tienes una, regístrala en Fincas.");
+    if (!fecha) return aviso("aviso", "Indica la fecha del vuelo.");
+    if (fecha > hoyISO()) return aviso("aviso", "La fecha del vuelo no puede ser futura.");
+    if (!archivo) return aviso("aviso", "Falta el video. Arrástralo al recuadro o haz click para elegirlo.");
+    $("#resultado").classList.remove("ver");
+    bloquear(true);
+    const prog = $("#progreso"), barra = $("#barra"), txt = $("#progreso-txt");
+    prog.classList.add("ver"); barra.classList.remove("analiza"); barra.firstElementChild.style.transform = "scaleX(0)";
+    let p = 0;
+    const inicio = performance.now();
+    proceso = setInterval(() => {
+      p = Math.min(100, p + 4 + Math.random() * 8);
+      barra.firstElementChild.style.transform = `scaleX(${p / 100})`;
+      txt.textContent = `Subiendo video… ${Math.round(p)}%`;
+      if (p < 100) return;
+      clearInterval(proceso);
+      barra.firstElementChild.style.transform = ""; barra.classList.add("analiza");
+      txt.textContent = "Video subido. Detectando bovinos fotograma a fotograma…";
+      proceso = setTimeout(() => terminarConteo({ fincaId, fecha, nota, inicio }), 2200);
+    }, 120);
+  }
+
+  function terminarConteo({ fincaId, fecha, nota, inicio }) {
+    const reg = registrados(fincaId);
+    const bovinos = Math.max(0, reg + Math.round((Math.random() - 0.35) * 4));
+    const pesos = animalesDe(fincaId).map((a) => a.peso).filter(Boolean);
+    const base = pesos.length ? Math.round(pesos.reduce((s, x) => s + x, 0) / pesos.length) : 380 + Math.round(Math.random() * 40);
+    const c = {
+      id: siguienteCenso(),
+      fincaId, fechaVuelo: fecha, video: archivo.name, duracion: null, bovinos,
+      peso: base, pesoMin: Math.round(base * 0.93), pesoMax: Math.round(base * 1.07),
+      conteoManual: null, nota, tiempo: Math.round((performance.now() - inicio) / 100) / 10, modelo: "YOLOv26s", estado: "completado",
+    };
+    const fin = () => {
+      $("#progreso").classList.remove("ver"); bloquear(false);
+      db.censos.push(c); guardar();
+      V.censo.resaltar = c.id; V.censo.filtro = "";
+      render({ quieto: true });
+      const r = $("#resultado"); r.innerHTML = htmlResultado(c); r.classList.add("ver");
+      r.scrollIntoView({ behavior: "smooth", block: "center" });
+      toast("Censo guardado en el historial");
+    };
+    if (!archivo.type.startsWith("video/")) return fin();
+    const v = document.createElement("video"), url = URL.createObjectURL(archivo);
+    v.preload = "metadata";
+    v.onloadedmetadata = () => { if (isFinite(v.duration)) c.duracion = Math.round(v.duration); URL.revokeObjectURL(url); fin(); };
+    v.onerror = () => { URL.revokeObjectURL(url); fin(); };
+    v.src = url;
+  }
+
+  /* ---------- Fotos ---------- */
+  let fotoNueva;
+  function leerFoto(f) {
+    return new Promise((ok, mal) => {
+      const r = new FileReader();
+      r.onerror = mal;
+      r.onload = () => {
+        const img = new Image();
+        img.onerror = mal;
+        img.onload = () => {
+          const lado = 480, k = Math.min(1, lado / Math.max(img.width, img.height));
+          const cv = document.createElement("canvas"); cv.width = Math.round(img.width * k); cv.height = Math.round(img.height * k);
+          cv.getContext("2d").drawImage(img, 0, 0, cv.width, cv.height);
+          ok(cv.toDataURL("image/jpeg", 0.8));
+        };
+        img.src = r.result;
+      };
+      r.readAsDataURL(f);
+    });
+  }
+
+  /* ================= Formularios ================= */
+  const val = (id) => ($(`#${id}`)?.value ?? "").trim();
+  function marcar(ids, mal) { ids.forEach((id) => $(`#${id}`)?.setAttribute("aria-invalid", mal.includes(id) ? "true" : "false")); if (mal[0]) $(`#${mal[0]}`)?.focus(); }
+
+  const FORMS = {
+    "form-censo": (e) => iniciarConteo(e),
+
+    "f-login": async () => {
+      const correo = val("l-correo").toLowerCase(), clave = $("#l-clave").value;
+      if (!correo || !clave) { marcar(["l-correo", "l-clave"], [!correo && "l-correo", !clave && "l-clave"].filter(Boolean)); return aviso("aviso-login", "Ingresa tu correo y tu contraseña."); }
+      if (!REGLA_CORREO.test(correo)) { marcar(["l-correo"], ["l-correo"]); return aviso("aviso-login", "Ingresa un correo electrónico válido."); }
+      const u = db.usuarios.find((x) => x.correo.toLowerCase() === correo);
+      if (!u || !u.clave || u.clave !== await hash(clave)) return aviso("aviso-login", "Correo o contraseña incorrectos. Revisa los datos e inténtalo de nuevo.");
+      entrar(u);
+    },
+
+    "f-registro": async () => {
+      const ids = ["r-nombre", "r-apellido", "r-correo", "r-clave", "r-confirmar"];
+      const d = { nombre: val("r-nombre"), apellido: val("r-apellido"), correo: val("r-correo").toLowerCase(), clave: $("#r-clave").value, confirmar: $("#r-confirmar").value };
+      const mal = ids.filter((id) => !$(`#${id}`).value.trim());
+      if (mal.length) { marcar(ids, mal); return aviso("aviso-registro", "Completa todos los campos para continuar."); }
+      if (!REGLA_CORREO.test(d.correo)) { marcar(ids, ["r-correo"]); return aviso("aviso-registro", "Ingresa un correo electrónico válido."); }
+      if (db.usuarios.some((u) => u.correo.toLowerCase() === d.correo)) { marcar(ids, ["r-correo"]); return aviso("aviso-registro", "Ya existe una cuenta con ese correo. Inicia sesión o usa otro correo."); }
+      if (!REGLA_CONTRASENA.test(d.clave)) { marcar(ids, ["r-clave"]); return aviso("aviso-registro", "La contraseña necesita al menos 8 caracteres, una mayúscula, una minúscula y un número."); }
+      if (d.clave !== d.confirmar) { marcar(ids, ["r-confirmar"]); return aviso("aviso-registro", "Las contraseñas no coinciden."); }
+      const u = { id: nuevoId(), nombre: d.nombre, apellido: d.apellido, correo: d.correo, rol: "Ganadero", clave: await hash(d.clave) };
+      db.usuarios.push(u);
+      entrar(u, "#fincas", "Tu cuenta fue creada. Ya puedes registrar tus fincas.");
+    },
+
+    "f-finca": () => {
+      const ids = ["f-nombre", "f-mun", "f-dep"];
+      const mal = ids.filter((id) => !val(id));
+      if (mal.length) { marcar(ids, mal); return aviso("aviso-finca", "Nombre, municipio y departamento son obligatorios."); }
+      if (misFincas().some((f) => normal(f.nombre) === normal(val("f-nombre")))) { marcar(ids, ["f-nombre"]); return aviso("aviso-finca", "Ya tienes una finca con ese nombre."); }
+      const f = { id: nuevoId(), usuarioId: db.sesion, nombre: val("f-nombre"), municipio: val("f-mun"), departamento: val("f-dep"), direccion: val("f-dir") };
+      db.fincas.push(f); guardar();
+      location.hash = `#finca/${f.id}`; toast("La finca se registró correctamente");
+    },
+
+    "f-bovino": async (e) => {
+      const form = e.target, fid = form.dataset.finca, aid = form.dataset.animal;
+      const ids = ["b-numero", "b-sexo", "b-peso"];
+      const numero = val("b-numero"), sexo = val("b-sexo"), pesoTxt = val("b-peso");
+      const mal = [!numero && "b-numero", !sexo && "b-sexo"].filter(Boolean);
+      if (mal.length) { marcar(ids, mal); return aviso("aviso-bovino", mal.length === 2 ? "Escribe el número del animal y selecciona el sexo." : mal[0] === "b-numero" ? "El número del animal es obligatorio." : "Selecciona el sexo."); }
+      if (pesoTxt && !(Number(pesoTxt) > 0)) { marcar(ids, ["b-peso"]); return aviso("aviso-bovino", "El peso debe ser mayor que 0."); }
+      if (animalesDe(fid).some((a) => a.id !== aid && normal(a.numero) === normal(numero))) { marcar(ids, ["b-numero"]); return aviso("aviso-bovino", `Ya existe un bovino con el número ${numero} en esta finca.`); }
+      const datos = { numero, sexo, nacimiento: val("b-nac"), peso: pesoTxt ? Number(pesoTxt) : null, estadoReproductivo: val("b-repro"), estadoGeneral: val("b-general"), enfermedad: val("b-enf") };
+      if (fotoNueva !== undefined) datos.foto = fotoNueva;
+      let id = aid;
+      if (aid) Object.assign(db.animales.find((a) => a.id === aid), datos);
+      else { id = nuevoId(); db.animales.push({ id, fincaId: fid, foto: null, ...datos }); }
+      fotoNueva = undefined; guardar();
+      location.hash = `#bovino/${id}`; toast(aid ? "Cambios guardados" : `Bovino ${numero} registrado`);
+    },
+
+    "f-vacuna": () => {
+      const id = location.hash.split("/")[1];
+      const v = val("v-vacuna"), fecha = val("v-fecha");
+      if (!v) { marcar(["v-vacuna", "v-fecha"], ["v-vacuna"]); return aviso("aviso-vacuna", "Selecciona una vacuna."); }
+      if (!fecha) { marcar(["v-vacuna", "v-fecha"], ["v-fecha"]); return aviso("aviso-vacuna", "Indica la fecha de aplicación."); }
+      if (fecha > hoyISO()) { marcar(["v-vacuna", "v-fecha"], ["v-fecha"]); return aviso("aviso-vacuna", "La fecha no puede ser futura."); }
+      if (db.aplicaciones.some((p) => p.animalId === id && p.vacunaId === v && p.fecha === fecha)) return aviso("aviso-vacuna", "Esa aplicación ya está registrada con la misma fecha.");
+      db.aplicaciones.push({ id: nuevoId(), animalId: id, vacunaId: v, fecha }); guardar();
+      render({ quieto: true }); toast("Vacuna registrada");
+    },
+
+    "f-nueva-vacuna": () => {
+      const nombre = val("nv-nombre");
+      if (nombre.length < 2) { marcar(["nv-nombre"], ["nv-nombre"]); return aviso("aviso-nv", "Escribe el nombre de la vacuna."); }
+      if (db.vacunas.some((v) => normal(v.nombre) === normal(nombre))) return aviso("aviso-nv", "Esa vacuna ya está en el catálogo.");
+      const v = { id: nuevoId(), nombre }; db.vacunas.push(v); guardar();
+      render({ quieto: true }); $("#v-vacuna").value = v.id; toast("Vacuna agregada al catálogo");
+    },
+
+    "f-manual": () => {
+      const id = location.hash.split("/")[1], texto = val("m-valor");
+      if (texto === "") { marcar(["m-valor"], ["m-valor"]); return aviso("aviso-manual", "Ingresa el número de animales contados."); }
+      const n = Number(texto);
+      if (!Number.isInteger(n) || n < 0) { marcar(["m-valor"], ["m-valor"]); return aviso("aviso-manual", "Debe ser un número entero, 0 o mayor."); }
+      db.censos.find((c) => c.id === id).conteoManual = n; guardar();
+      render({ quieto: true }); toast("Conteo manual guardado");
+    },
+
+    "f-perfil": () => {
+      const ids = ["p-nombre", "p-apellido", "p-correo"];
+      const mal = ids.filter((id) => !val(id));
+      if (mal.length) { marcar(ids, mal); return aviso("aviso-perfil", "Nombre, apellido y correo son obligatorios."); }
+      const correo = val("p-correo").toLowerCase();
+      if (!REGLA_CORREO.test(correo)) { marcar(ids, ["p-correo"]); return aviso("aviso-perfil", "Ingresa un correo electrónico válido."); }
+      if (db.usuarios.some((u) => u.id !== db.sesion && u.correo.toLowerCase() === correo)) { marcar(ids, ["p-correo"]); return aviso("aviso-perfil", "Ese correo ya pertenece a otra cuenta."); }
+      Object.assign(usuario(), { nombre: val("p-nombre"), apellido: val("p-apellido"), correo }); guardar();
+      V.usuario.editando = false; render({ quieto: true }); toast("Los datos del perfil se actualizaron");
+    },
+  };
+
+  function entrar(u, destino, msg) {
+    db.sesion = u.id; guardar();
+    const ir = destino || (V.retorno && !/^(login|registro)/.test(V.retorno) ? `#${V.retorno}` : "#inicio");
+    V.retorno = null;
+    location.hash = ir; toast(msg || `Hola, ${u.nombre}`);
+  }
+
+  /* ================= Eventos ================= */
+  document.addEventListener("submit", (e) => {
+    const f = FORMS[e.target.id]; if (!f) return;
+    e.preventDefault(); f(e);
+  });
+
+  document.addEventListener("click", (e) => {
+    const cz = e.target.closest("[data-censar]");
+    if (cz) V.censo.fincaInicial = cz.dataset.censar;
+    const el = e.target.closest("[data-accion]"); if (!el) return;
+    const acc = el.dataset.accion;
+    if (acc === "salir") { db.sesion = null; guardar(); if (location.hash === "#inicio") render(); else location.hash = "#inicio"; toast("Cerraste sesión"); }
+    if (acc === "ejemplo") {
+      if (misFincas().length) return toast("Ya tienes fincas registradas");
+      cargarEjemplo(db.sesion); guardar();
+      if (location.hash === "#fincas") render({ quieto: true }); else location.hash = "#fincas";
+      toast("Datos de ejemplo cargados en tu cuenta");
+    }
+    if (acc === "cerrar-resultado") $("#resultado").classList.remove("ver");
+    if (acc === "limpiar-fincas") { V.fincas.q = ""; V.fincas.dep = ""; render({ quieto: true }); }
+    if (acc === "limpiar-animales") { V.finca.filtros[el.dataset.finca] = { q: "", sexo: "", estado: "" }; render({ quieto: true }); }
+    if (acc === "editar-perfil") { V.usuario.editando = true; render({ quieto: true }); $("#p-nombre").focus(); }
+    if (acc === "cancelar-perfil") { V.usuario.editando = false; render({ quieto: true }); }
+    if (acc === "pedir-eliminar") {
+      $("#acciones-bovino").innerHTML = `<span class="confirmar">¿Eliminar este bovino y sus vacunas? <button class="btn btn-peligro btn-sm" data-accion="eliminar-bovino">Sí, eliminar</button><button class="btn btn-oscuro btn-sm" data-accion="no-eliminar">No</button></span>`;
+      $("[data-accion=no-eliminar]").focus();
+    }
+    if (acc === "no-eliminar") render({ quieto: true });
+    if (acc === "eliminar-bovino") {
+      const id = location.hash.split("/")[1], a = animal(id);
+      db.animales = db.animales.filter((x) => x.id !== id);
+      db.aplicaciones = db.aplicaciones.filter((p) => p.animalId !== id); guardar();
+      location.hash = `#finca/${a.fincaId}`; toast(`Bovino ${a.numero} eliminado`);
+    }
+    if (acc === "eliminar-aplicacion") { db.aplicaciones = db.aplicaciones.filter((p) => p.id !== el.dataset.id); guardar(); render({ quieto: true }); toast("Registro eliminado"); }
+    if (acc === "mostrar-nueva-vacuna") {
+      $("#nueva-vacuna").innerHTML = `<form class="form" id="f-nueva-vacuna" novalidate style="max-width:none"><div class="form-linea linea-nv"><div class="campo"><label for="nv-nombre">Nombre de la nueva vacuna</label><input id="nv-nombre" class="ctl" maxlength="60" placeholder="Ej.: Leptospirosis"></div><button class="btn btn-claro" type="submit">Agregar al catálogo</button><button class="btn btn-oscuro" type="button" data-accion="no-nueva-vacuna">Cancelar</button></div><div class="aviso" id="aviso-nv" role="alert"></div></form>`;
+      $("#nv-nombre").focus();
+    }
+    if (acc === "no-nueva-vacuna") $("#nueva-vacuna").innerHTML = `<button class="btn-texto" type="button" data-accion="mostrar-nueva-vacuna">¿No está en la lista? Agregar vacuna al catálogo</button>`;
+  });
+
+  document.addEventListener("click", (e) => { if (e.target.id === "b-cancelar") { cancelarProceso(); $("#progreso").classList.remove("ver"); bloquear(false); aviso("aviso", "Cancelaste la subida. El video sigue seleccionado por si quieres intentarlo de nuevo."); } });
+
+  document.addEventListener("input", (e) => {
+    const t = e.target;
+    if (t.getAttribute("aria-invalid") === "true") t.setAttribute("aria-invalid", "false");
+    if (t.id === "q-finca") { V.fincas.q = t.value; refrescarConFoco(t); }
+    if (t.id === "q-animal") { filtroFinca().q = t.value; actualizarAnimales(); }
+    if (t.id === "q-vacuna") { V.bovino.q = t.value; refrescarConFoco(t); }
+  });
+
+  document.addEventListener("change", async (e) => {
+    const t = e.target;
+    if (t.id === "h-finca") { V.censo.filtro = t.value; V.censo.resaltar = null; render({ quieto: true }); $("#h-finca").focus(); }
+    if (t.id === "dep-finca") { V.fincas.dep = t.value; render({ quieto: true }); $("#dep-finca").focus(); }
+    if (t.id === "fs-sexo") { filtroFinca().sexo = t.value; actualizarAnimales(); }
+    if (t.id === "fs-estado") { filtroFinca().estado = t.value; actualizarAnimales(); }
+    if (t.id === "b-foto") {
+      const f = t.files[0]; aviso("aviso-bovino", "");
+      if (!f) return;
+      if (!f.type.startsWith("image/")) { t.value = ""; return aviso("aviso-bovino", "El archivo debe ser una imagen (PNG, JPG, WEBP…)."); }
+      if (f.size > 5 * 1024 * 1024) { t.value = ""; return aviso("aviso-bovino", "La imagen supera los 5 MB."); }
+      try { fotoNueva = await leerFoto(f); const p = $("#b-foto-prev"); p.src = fotoNueva; p.hidden = false; }
+      catch { aviso("aviso-bovino", "No se pudo leer la imagen. Prueba con otra foto."); }
+    }
+  });
+
+  const filtroFinca = () => V.finca.filtros[location.hash.split("/")[1]];
+  function actualizarAnimales() {
+    const id = location.hash.split("/")[1], st = filtroFinca(), q = normal(st.q);
+    const lista = animalesDe(id).filter((a) => (!q || normal(`${a.numero} ${a.sexo} ${a.estadoGeneral} ${a.estadoReproductivo} ${a.enfermedad}`).includes(q)) && (!st.sexo || a.sexo === st.sexo) && (!st.estado || a.estadoGeneral === st.estado));
+    $("#tabla-animales").innerHTML = tablaAnimales(lista, id);
+  }
+  function refrescarConFoco(t) {
+    const id = t.id, pos = t.selectionStart;
+    render({ quieto: true });
+    const n = $(`#${id}`); if (n) { n.focus(); n.setSelectionRange(pos, pos); }
+  }
+
+  window.addEventListener("hashchange", () => { fotoNueva = undefined; V.usuario.editando = false; V.bovino.q = ""; render(); });
+  render();
+})();
+</script>
+</body>
+</html>

@@ -3,6 +3,8 @@ require("dotenv").config();
 
 types.setTypeParser(1700, (value) => (value === null ? null : parseFloat(value)));
 types.setTypeParser(20, (value) => (value === null ? null : parseInt(value, 10)));
+// Las columnas DATE (fecha del vuelo, nacimiento) viajan como "AAAA-MM-DD", sin hora ni zona
+types.setTypeParser(1082, (value) => value);
 
 const esEntornoDePrueba = process.env.NODE_ENV === "test";
 const databaseName = esEntornoDePrueba
@@ -23,9 +25,12 @@ const usarUrl = !esEntornoDePrueba && Boolean(process.env.DATABASE_URL);
 // DB_SSL=true cuando la base exige conexión cifrada (por ejemplo, la URL pública de Railway).
 const ssl = process.env.DB_SSL === "true" ? { rejectUnauthorized: false } : undefined;
 
+// DB_POOL_MAX limita las conexiones simultáneas (útil en planes gratuitos con pocas conexiones)
+const max = Number(process.env.DB_POOL_MAX) || 10;
+
 const pool = new Pool(
   usarUrl
-    ? { connectionString: process.env.DATABASE_URL, ssl }
+    ? { connectionString: process.env.DATABASE_URL, ssl, max }
     : {
         host: process.env.DB_HOST,
         port: process.env.DB_PORT,
@@ -33,6 +38,7 @@ const pool = new Pool(
         user: process.env.DB_USER,
         password: process.env.DB_PASSWORD,
         ssl,
+        max,
       }
 );
 

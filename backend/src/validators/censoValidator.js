@@ -9,6 +9,10 @@ const crearCensoValidator = [
     .trim()
     .isLength({ max: 500 })
     .escape(),
+  body("fecha_vuelo")
+    .optional({ values: "falsy" })
+    .isISO8601({ strict: true }).withMessage("fecha_vuelo debe tener formato AAAA-MM-DD")
+    .custom((valor) => new Date(valor) <= new Date()).withMessage("La fecha del vuelo no puede ser futura"),
 ];
 
 const idFincaParamValidator = [

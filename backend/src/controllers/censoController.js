@@ -8,7 +8,7 @@ const AI_SERVICE_URL = process.env.AI_SERVICE_URL || "http://localhost:8000";
 const AI_TIMEOUT_MS = Number(process.env.AI_TIMEOUT_MS) || 240000;
 
 async function crearCenso(req, res) {
-  const { id_finca, nota } = req.body;
+  const { id_finca, nota, fecha_vuelo } = req.body;
 
   if (!req.file) {
     return res.status(422).json({
@@ -18,8 +18,8 @@ async function crearCenso(req, res) {
 
   // 1. Crear el censo en estado "Procesando" antes de llamar a la IA
   const censoInicial = await pool.query(
-    "SELECT * FROM fn_crear_censo($1, $2, $3)",
-    [id_finca, nota || null, "Procesando"]
+    "SELECT * FROM fn_crear_censo($1, $2, $3, $4, $5)",
+    [id_finca, nota || null, "Procesando", fecha_vuelo || null, req.file.originalname.slice(0, 255)]
   );
   const idCenso = censoInicial.rows[0].id_censo;
 
@@ -72,7 +72,7 @@ async function crearCenso(req, res) {
 async function listarCensosPorFinca(req, res) {
   const { id_finca } = req.params;
 
-  const result = await pool.query("SELECT * FROM fn_listar_censos_finca($1)", [id_finca]);
+  const result = await pool.query("SELECT * FROM fn_listar_censos_finca_completo($1)", [id_finca]);
   res.json(result.rows);
 }
 

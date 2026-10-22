@@ -26,8 +26,9 @@ un minuto antes de una presentación.
    $env:DATABASE_URL="pega-aqui-la-cadena"; node scripts/crearEsquema.js
    ```
 
-   Debe responder `Esquema creado: 23 funciones y procedimientos.` Si lo ejecutas de nuevo,
-   no cambia nada.
+   Crea el esquema base si falta y aplica las migraciones de `backend/database/migraciones`.
+   Debe terminar con `Listo: 24 funciones y procedimientos.` Se puede ejecutar de nuevo sin riesgo;
+   hazlo cada vez que se agregue una migración, **antes** de publicar el backend que la necesita.
 
 ## 2. Render: backend y servicio de IA
 

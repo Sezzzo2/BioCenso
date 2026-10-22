@@ -1,14 +1,19 @@
 import base64
+import hmac
 import json
 import os
 import time
 import urllib.error
 import urllib.request
-from fastapi import FastAPI, File, HTTPException, UploadFile
+
+from fastapi import FastAPI, File, Header, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 
 # La clave nunca va en el código: se configura como variable de entorno del servicio
 API_KEY = os.getenv("GEMINI_API_KEY", "")
+# Si está definido, /predict solo atiende al backend (cabecera X-Servicio-Token).
+# Evita que cualquiera que encuentre la URL pública gaste la cuota de Gemini.
+SERVICIO_TOKEN = os.getenv("AI_SERVICE_TOKEN", "")
 # Mismos modelos que usaba el frontend: si uno está saturado (503) o sin cuota (429),
 # se prueba el siguiente. GEMINI_MODEL, si se define, se intenta primero.
 MODELOS = [
@@ -75,7 +80,7 @@ app = FastAPI(title="BioCenso AI Service")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[],
     allow_methods=["POST", "GET"],
     allow_headers=["*"],
 )
@@ -87,7 +92,9 @@ def health():
 
 
 @app.post("/predict")
-async def predict(imagen: UploadFile = File(...)):
+async def predict(imagen: UploadFile = File(...), x_servicio_token: str = Header(default="")):
+    if SERVICIO_TOKEN and not hmac.compare_digest(x_servicio_token, SERVICIO_TOKEN):
+        raise HTTPException(status_code=401, detail="No autorizado")
     if not API_KEY:
         raise HTTPException(status_code=503, detail="GEMINI_API_KEY no está configurada")
     inicio = time.perf_counter()

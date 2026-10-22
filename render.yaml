@@ -1,0 +1,64 @@
+# Blueprint de Render: crea el backend y el servicio de IA de BioCenso (plan gratis).
+# La base de datos va en Neon y la página en Firebase Hosting (ver DESPLIEGUE.md).
+# Las variables con "sync: false" se piden al crear el Blueprint; no se guardan aquí.
+services:
+  - type: web
+    name: biocenso-backend
+    runtime: node
+    plan: free
+    region: oregon
+    branch: prueba
+    rootDir: backend
+    buildCommand: npm ci --omit=dev
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: DB_SSL
+        value: "true"
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRES_IN
+        value: 2h
+      - key: FRONTEND_ORIGIN
+        value: https://biocenso-ucc-2026.web.app,https://biocenso-ucc-2026.firebaseapp.com
+      - key: TRUST_PROXY
+        value: "true"
+      - key: AI_SERVICE_URL
+        value: https://biocenso-ai.onrender.com
+      - key: AI_TIMEOUT_MS
+        value: "240000"
+      - key: AI_SERVICE_TOKEN
+        fromService:
+          type: web
+          name: biocenso-ai
+          envVarKey: AI_SERVICE_TOKEN
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false
+
+  - type: web
+    name: biocenso-ai
+    runtime: python
+    plan: free
+    region: oregon
+    branch: prueba
+    rootDir: ai-service
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.8
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: AI_SERVICE_TOKEN
+        generateValue: true

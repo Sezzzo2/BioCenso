@@ -2,7 +2,8 @@ import axios from "axios";
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL,
-  timeout: 15000,
+  // Un backend gratuito dormido tarda ~50 s en despertar
+  timeout: 70000,
 });
 
 // Adjunta el token a cada petición

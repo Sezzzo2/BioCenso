@@ -64,7 +64,17 @@ const limiter = rateLimit({
 });
 app.use(limiter);
 
+// En planes gratuitos los servicios se duermen sin uso. La página llama a /health al
+// abrirse; aquí se despierta también el servicio de IA (como mucho una vez cada 5 min)
+// para que el primer censo no espere dos arranques en frío seguidos.
+let ultimoDespertarIA = 0;
 app.get("/health", (req, res) => {
+  if (process.env.NODE_ENV === "production" && Date.now() - ultimoDespertarIA > 5 * 60 * 1000) {
+    ultimoDespertarIA = Date.now();
+    axios
+      .get(`${process.env.AI_SERVICE_URL || "http://localhost:8000"}/health`, { timeout: 90000 })
+      .catch(() => {});
+  }
   res.json({ estado: "ok", mensaje: "API BioCenso funcionando" });
 });
 

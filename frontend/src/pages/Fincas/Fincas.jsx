@@ -58,8 +58,8 @@ export default function Fincas() {
                     <p className="lugar"><Icon name="mapPin" />{[f.municipio, f.departamento].filter(Boolean).join(", ") || "Sin ubicación"}</p>
                   </div>
                   <dl className="finca-cifras">
-                    <div><dt>Registrados</dt><dd>{f.registrados}</dd></div>
-                    <div><dt>Último conteo</dt><dd>{conteo ?? "—"}</dd></div>
+                    <div title="Bovinos registrados en la finca"><dt>Registrados</dt><dd>{f.registrados}</dd></div>
+                    <div title="Bovinos contados por el dron en el último censo"><dt>Contados</dt><dd>{conteo ?? "—"}</dd></div>
                   </dl>
                   <p className="finca-pie">
                     {ultimo

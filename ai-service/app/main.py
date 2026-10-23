@@ -64,26 +64,38 @@ def llamar_gemini(cuerpo):
     raise HTTPException(status_code=503, detail="Ningún modelo de Gemini respondió: " + "; ".join(fallos))
 
 
+# Referencia de pesos para el ganado de la Orinoquía colombiana (Meta, Casanare, Vichada):
+# Brahman, cebú comercial y sus cruces. Sin ella el modelo tendía a pesos bajos.
+REFERENCIA_PESOS = """Referencia de peso vivo para ganado de la Orinoquía colombiana (Brahman, cebú comercial y sus cruces):
+- Vaca adulta: 420 a 550 kg
+- Toro adulto: 650 a 900 kg
+- Novillo de levante o ceba: 300 a 480 kg
+- Novilla: 280 a 400 kg
+- Ternero o ternera: 120 a 250 kg
+Clasifica cada res por su tamaño frente a las demás (el dron vuela a unos 30 a 50 m) y por su forma, y asígnale un peso dentro del rango de su categoría. Un animal adulto de tamaño normal debe quedar cerca de la mitad de su rango, no en el extremo bajo."""
+
 PROMPT_CENSO = """Actúa como el motor de visión por computadora de BioCenso especializado en detección y conteo de ganado bovino (vacas, toros, novillos, terneros).
 1. Examina con máxima atención todo el video o imagen de principio a fin y cuenta TODAS las vacas/reses que aparecen en la escena o recorrido (de pie, echadas, caminando, agrupadas, parcialmente visibles o en sombra). NO subestimes el conteo: "count" debe ser el número total real de reses identificadas.
-2. Estima el rango de peso promedio por res en kilogramos ("peso_promedio_minimo_kg" y "peso_promedio_maximo_kg") y toma SIEMPRE el valor mínimo del rango de peso como "peso_estimado_promedio".
+2. Estima el rango del peso promedio por res en kilogramos ("peso_promedio_minimo_kg" y "peso_promedio_maximo_kg") y el peso promedio más probable ("peso_estimado_promedio"), según la referencia de abajo.
 3. Calcula "peso_total_estimado" = "count" * "peso_estimado_promedio".
 4. Elige el fotograma donde se vean más reses con claridad. En "captura.segundo" indica su segundo exacto dentro del video (usa 0 si es una imagen). Para CADA res visible en ese fotograma agrega un elemento a "captura.animales" con su recuadro "box_2d" = [ymin, xmin, ymax, xmax] en coordenadas normalizadas de 0 a 1000 sobre ese fotograma, y su peso individual estimado en kilogramos en "peso_kg". No marques otros animales (perros, caballos, cabras).
 
 Responde ÚNICAMENTE con JSON válido:
 {
   "count": 7,
-  "peso_promedio_minimo_kg": 350,
-  "peso_promedio_maximo_kg": 410,
-  "peso_estimado_promedio": 350,
-  "peso_total_estimado": 2450,
+  "peso_promedio_minimo_kg": 430,
+  "peso_promedio_maximo_kg": 510,
+  "peso_estimado_promedio": 470,
+  "peso_total_estimado": 3290,
   "captura": {
     "segundo": 12.5,
     "animales": [
-      {"box_2d": [412, 230, 470, 290], "peso_kg": 360}
+      {"box_2d": [412, 230, 470, 290], "peso_kg": 470}
     ]
   }
-}"""
+}
+
+""" + REFERENCIA_PESOS
 
 # Gemini acepta archivos en la misma petición hasta ~20 MB (en base64 crecen un tercio);
 # por encima se suben antes con la API de archivos, que admite videos de hasta 2 GB.
@@ -176,8 +188,10 @@ PROMPT_CAJAS = """Esta es una imagen aérea de un potrero tomada por un dron. De
 No marques otros animales (perros, caballos, cabras, ovejas, aves) ni objetos.
 Para cada res da su recuadro "box_2d" = [ymin, xmin, ymax, xmax] ajustado al cuerpo, en coordenadas normalizadas de 0 a 1000 sobre esta misma imagen, y su peso individual estimado en kilogramos en "peso_kg".
 
+""" + REFERENCIA_PESOS + """
+
 Responde ÚNICAMENTE con JSON válido:
-{"animales": [{"box_2d": [412, 230, 470, 290], "peso_kg": 360}]}
+{"animales": [{"box_2d": [412, 230, 470, 290], "peso_kg": 470}]}
 Si no hay reses, responde {"animales": []}."""
 
 
@@ -238,18 +252,25 @@ def predict(imagen: UploadFile = File(...), x_servicio_token: str = Header(defau
     datos = json.loads(texto)
 
     conteo = max(0, int(datos.get("count", datos.get("conteo_maximo", 0)) or 0))
+    # El promedio es el valor más probable que estima el modelo, acotado a su propio rango.
+    # Antes se tomaba el mínimo del rango y los pesos quedaban sistemáticamente bajos.
     peso_min = round(float(datos.get("peso_promedio_minimo_kg", datos.get("peso_estimado_promedio", 0)) or 0), 2)
     peso_max = round(max(peso_min, float(datos.get("peso_promedio_maximo_kg", peso_min) or peso_min)), 2)
-    peso_total_min = round(conteo * peso_min, 2)
+    try:
+        peso_prom = float(datos.get("peso_estimado_promedio"))
+    except (TypeError, ValueError):
+        peso_prom = (peso_min + peso_max) / 2
+    peso_prom = round(min(max(peso_prom, peso_min), peso_max), 2)
+    peso_total = round(conteo * peso_prom, 2)
 
     tiempo_procesamiento = round(time.perf_counter() - inicio, 2)
 
     return {
         "count": conteo,
-        "peso_estimado_promedio": peso_min,
+        "peso_estimado_promedio": peso_prom,
         "peso_promedio_minimo_kg": peso_min,
         "peso_promedio_maximo_kg": peso_max,
-        "peso_total_estimado": peso_total_min,
+        "peso_total_estimado": peso_total,
         "observaciones": datos.get("observaciones", ""),
         "captura": leer_captura(datos),
         "detections": [],

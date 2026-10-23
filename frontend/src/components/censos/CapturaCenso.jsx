@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { detectarCaptura } from "../../services/censoService.js";
+import { extraerError } from "../../utils/errores.js";
 
 const VERDE = "#86e05b";
 const TINTA = "#10230c";
@@ -156,22 +157,42 @@ const comoBlob = (cv) => new Promise((ok) => cv.toBlob(ok, "image/jpeg", 0.9));
 // sobre esa misma imagen, para que los recuadros coincidan con lo que se ve.
 export default function CapturaCenso({ archivo, captura, idCenso }) {
   const lienzo = useRef(null);
+  const fotogramaRef = useRef(null); // se conserva para reintentar sin volver a leer el video
   const [estado, setEstado] = useState("cargando"); // cargando | marcando | listo | sinReses | error
+  const [motivo, setMotivo] = useState("");
   const [animales, setAnimales] = useState([]);
   const [numerados, setNumerados] = useState([]);
+  const [modelo, setModelo] = useState(null);
+  const [intento, setIntento] = useState(0);
+  const [hayFotograma, setHayFotograma] = useState(false);
 
   useEffect(() => {
     if (!archivo || !captura) return undefined;
     let cancelado = false;
     (async () => {
+      let fotograma = fotogramaRef.current;
+      if (!fotograma) {
+        try {
+          fotograma = await extraerFotograma(archivo, captura.segundo);
+          fotogramaRef.current = fotograma;
+          setHayFotograma(true);
+        } catch {
+          if (!cancelado) {
+            setMotivo("Este navegador no pudo leer el video para sacar el fotograma.");
+            setEstado("error");
+          }
+          return;
+        }
+      }
+      if (cancelado) return;
       try {
-        const fotograma = await extraerFotograma(archivo, captura.segundo);
-        if (cancelado) return;
         let marcados = archivo.type.startsWith("image/") ? captura.animales ?? [] : [];
         if (!marcados.length && idCenso) {
           setEstado("marcando");
-          marcados = await detectarCaptura(idCenso, await comoBlob(fotograma));
+          const respuesta = await detectarCaptura(idCenso, await comoBlob(fotograma));
           if (cancelado) return;
+          marcados = respuesta.animales;
+          setModelo(respuesta.modelo);
         }
         if (!marcados.length) {
           setEstado("sinReses");
@@ -180,12 +201,15 @@ export default function CapturaCenso({ archivo, captura, idCenso }) {
         setNumerados(dibujar(lienzo.current, fotograma, marcados));
         setAnimales(marcados);
         setEstado("listo");
-      } catch {
-        if (!cancelado) setEstado("error");
+      } catch (err) {
+        if (!cancelado) {
+          setMotivo(err?.code === "ECONNABORTED" ? "La IA tardó demasiado en marcar las reses." : extraerError(err));
+          setEstado("error");
+        }
       }
     })();
     return () => { cancelado = true; };
-  }, [archivo, captura, idCenso]);
+  }, [archivo, captura, idCenso, intento]);
 
   if (!captura) return null;
 
@@ -215,9 +239,16 @@ export default function CapturaCenso({ archivo, captura, idCenso }) {
           <p className="texto-suave" style={{ padding: 20 }}>La IA no encontró reses claras en el fotograma elegido para la captura.</p>
         )}
         {estado === "error" && (
-          <p className="texto-suave" style={{ padding: 20 }}>
-            No se pudo preparar la captura del fotograma. El conteo y los pesos sí quedaron guardados.
-          </p>
+          <div style={{ padding: 20 }}>
+            <p>{motivo || "No se pudo preparar la captura del fotograma."}</p>
+            <p className="texto-suave" style={{ marginTop: 4 }}>El conteo y los pesos sí quedaron guardados.</p>
+            {hayFotograma && idCenso && (
+              <button type="button" className="btn btn-oscuro btn-sm" style={{ marginTop: 12 }}
+                onClick={() => { setMotivo(""); setIntento((n) => n + 1); }}>
+                Reintentar captura
+              </button>
+            )}
+          </div>
         )}
       </div>
       {estado === "listo" && numerados.length > 0 && (
@@ -232,7 +263,9 @@ export default function CapturaCenso({ archivo, captura, idCenso }) {
             {animales.length} reses marcadas
             {pesos.length > 0 && <> · {totalMarcado.toLocaleString("es-CO")} kg entre todas</>}
           </span>
-          <span className="tenue">Recuadros y pesos aproximados estimados por la IA.</span>
+          <span className="tenue">
+            Recuadros y pesos aproximados estimados por la IA{modelo ? ` (${modelo})` : ""}.
+          </span>
           <button type="button" className="btn-texto" onClick={descargar}>Descargar captura</button>
         </figcaption>
       )}

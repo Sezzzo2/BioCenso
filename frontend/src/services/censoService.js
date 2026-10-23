@@ -120,7 +120,7 @@ export const detectarCaptura = async (idCenso, fotograma) => {
   const datos = new FormData();
   datos.append("fotograma", fotograma, "fotograma.jpg");
   const r = await api.post(`/censos/${idCenso}/captura`, datos, { timeout: 180000 });
-  return r.data?.animales ?? [];
+  return { animales: r.data?.animales ?? [], modelo: r.data?.modelo_gemini ?? null };
 };
 
 const CAMPO_CONTEO_MANUAL = "conteo_manual";

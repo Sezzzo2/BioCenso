@@ -4,6 +4,16 @@ const FormData = require("form-data");
 const pool = require("../config/db");
 
 const AI_SERVICE_URL = process.env.AI_SERVICE_URL || "http://localhost:8000";
+
+// Motivo legible de un fallo del servicio de IA (sin datos internos ni claves)
+function motivoIA(error) {
+  if (error.code === "ECONNABORTED") return "la IA tardó demasiado en responder";
+  const detalle = error.response?.data?.detail;
+  if (typeof detalle === "string" && detalle.length < 200) return detalle;
+  if (error.response?.status === 401) return "el servicio de IA rechazó el token del backend";
+  if (!error.response) return "no se pudo conectar con el servicio de IA";
+  return `el servicio de IA respondió ${error.response.status}`;
+}
 // Incluye despertar el servicio de IA (plan gratis), subir un video grande a Gemini,
 // esperar a que lo procese y generar la respuesta
 const AI_TIMEOUT_MS = Number(process.env.AI_TIMEOUT_MS) || 600000;
@@ -40,7 +50,7 @@ async function crearCenso(req, res) {
       maxContentLength: Infinity,
     });
 
-    const { count, peso_estimado_promedio, processing_time, captura } = respuestaIA.data;
+    const { count, peso_estimado_promedio, processing_time, captura, modelo_gemini } = respuestaIA.data;
 
     // 3. Guardar el resultado de la detección
     const deteccion = await pool.query(
@@ -59,6 +69,7 @@ async function crearCenso(req, res) {
       censo: censoFinal.rows[0],
       deteccion: deteccion.rows[0],
       captura: captura ?? null,
+      modelo_gemini: modelo_gemini ?? null,
     });
   } catch (error) {
     // Si la IA falla o no responde, el censo NO debe quedar "Procesando" para siempre
@@ -125,11 +136,16 @@ async function detectarCaptura(req, res) {
       headers: { ...formData.getHeaders(), "X-Servicio-Token": process.env.AI_SERVICE_TOKEN || "" },
       timeout: 180000,
     });
-    res.json({ animales: Array.isArray(respuesta.data?.animales) ? respuesta.data.animales : [] });
-  } catch {
+    res.json({
+      animales: Array.isArray(respuesta.data?.animales) ? respuesta.data.animales : [],
+      modelo_gemini: respuesta.data?.modelo_gemini ?? null,
+    });
+  } catch (error) {
+    const motivo = motivoIA(error);
+    console.error("Captura del censo", req.params.id, "falló:", motivo);
     const err = new Error();
     err.status = 502;
-    err.publicMessage = "No se pudieron marcar las reses en el fotograma";
+    err.publicMessage = `No se pudieron marcar las reses: ${motivo}.`;
     throw err;
   }
 }

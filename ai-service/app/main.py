@@ -2,6 +2,7 @@ import base64
 import hmac
 import json
 import os
+import re
 import time
 import urllib.error
 import urllib.request
@@ -52,7 +53,7 @@ def llamar_gemini(cuerpo):
         )
         try:
             with urllib.request.urlopen(req, timeout=min(TIMEOUT_MODELO, restante)) as resp:
-                return json.loads(resp.read().decode("utf-8"))
+                return json.loads(resp.read().decode("utf-8")), modelo
         except urllib.error.HTTPError as error:
             if error.code not in REINTENTABLES:
                 raise HTTPException(status_code=502, detail=f"Gemini rechazó la solicitud ({error.code})")
@@ -154,6 +155,27 @@ def subir_archivo(archivo, tamano, mime, nombre):
     return info
 
 
+def leer_respuesta(raw_resp):
+    """Saca el JSON del texto que devuelve Gemini, aunque venga envuelto en marcas de código."""
+    candidato = (raw_resp.get("candidates") or [{}])[0]
+    partes = (candidato.get("content") or {}).get("parts") or [{}]
+    texto = "".join(p.get("text", "") for p in partes).strip()
+    if not texto:
+        motivo = candidato.get("finishReason") or "respuesta vacía"
+        raise HTTPException(status_code=502, detail=f"Gemini no devolvió resultado ({motivo})")
+    texto = re.sub(r"^```(?:json)?\s*|\s*```$", "", texto)
+    try:
+        return json.loads(texto)
+    except json.JSONDecodeError:
+        inicio, fin = texto.find("{"), texto.rfind("}")
+        if inicio >= 0 and fin > inicio:
+            try:
+                return json.loads(texto[inicio:fin + 1])
+            except json.JSONDecodeError:
+                pass
+        raise HTTPException(status_code=502, detail="Gemini devolvió una respuesta que no se pudo leer")
+
+
 def leer_animales(lista):
     """Normaliza los recuadros [ymin, xmin, ymax, xmax] (0-1000) y el peso de cada res."""
     animales = []
@@ -238,18 +260,12 @@ def predict(imagen: UploadFile = File(...), x_servicio_token: str = Header(defau
         "generationConfig": {"responseMimeType": "application/json", "temperature": 0.1},
     }
     try:
-        raw_resp = llamar_gemini(json.dumps(payload).encode("utf-8"))
+        raw_resp, modelo_usado = llamar_gemini(json.dumps(payload).encode("utf-8"))
     finally:
         if subido:
             borrar_archivo(subido["name"])
 
-    texto = (
-        raw_resp.get("candidates", [{}])[0]
-        .get("content", {})
-        .get("parts", [{}])[0]
-        .get("text", "{}")
-    )
-    datos = json.loads(texto)
+    datos = leer_respuesta(raw_resp)
 
     conteo = max(0, int(datos.get("count", datos.get("conteo_maximo", 0)) or 0))
     # El promedio es el valor más probable que estima el modelo, acotado a su propio rango.
@@ -276,6 +292,7 @@ def predict(imagen: UploadFile = File(...), x_servicio_token: str = Header(defau
         "detections": [],
         "processing_time": tiempo_procesamiento,
         "model": "YOLOv26s",
+        "modelo_gemini": modelo_usado,
     }
 
 
@@ -295,13 +312,7 @@ def detectar(fotograma: UploadFile = File(...), x_servicio_token: str = Header(d
         ]}],
         "generationConfig": {"responseMimeType": "application/json", "temperature": 0.1},
     }
-    raw_resp = llamar_gemini(json.dumps(payload).encode("utf-8"))
-    texto = (
-        raw_resp.get("candidates", [{}])[0]
-        .get("content", {})
-        .get("parts", [{}])[0]
-        .get("text", "{}")
-    )
-    datos = json.loads(texto)
+    raw_resp, modelo_usado = llamar_gemini(json.dumps(payload).encode("utf-8"))
+    datos = leer_respuesta(raw_resp)
     lista = datos.get("animales") if isinstance(datos, dict) else datos
-    return {"animales": leer_animales(lista)}
+    return {"animales": leer_animales(lista), "modelo_gemini": modelo_usado}

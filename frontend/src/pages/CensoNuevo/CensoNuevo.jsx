@@ -278,7 +278,7 @@ function Resultado({ data, finca, fecha, archivo, onCerrar }) {
       <div className="resultado-top">
         <div>
           <h3>{id ? `Censo n.º ${id} registrado` : "Censo registrado"}</h3>
-          <p className="meta">{finca?.nombre} · vuelo del {formatFechaLarga(fecha)} · {archivo?.name}</p>
+          <p className="meta">{finca?.nombre} · vuelo del {formatFechaLarga(fecha)} · {archivo?.name}{data?.modelo_gemini ? ` · conteo con ${data.modelo_gemini}` : ""}</p>
         </div>
         <div className="acciones" style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
           {id && finca && <ButtonLink to={`/fincas/${finca.id_finca}/censos/${id}`} size="small">Ver ficha del censo</ButtonLink>}

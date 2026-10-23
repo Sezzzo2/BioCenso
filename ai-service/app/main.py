@@ -15,13 +15,11 @@ API_KEY = os.getenv("GEMINI_API_KEY", "")
 # Si está definido, /predict solo atiende al backend (cabecera X-Servicio-Token).
 # Evita que cualquiera que encuentre la URL pública gaste la cuota de Gemini.
 SERVICIO_TOKEN = os.getenv("AI_SERVICE_TOKEN", "")
-# Mismos modelos que usaba el frontend: si uno está saturado (503) o sin cuota (429),
-# se prueba el siguiente. GEMINI_MODEL, si se define, se intenta primero.
+# Solo modelos Flash completos del plan gratuito: los "lite" ubicaban peor las reses y
+# estimaban peor los pesos. Si uno está saturado (503) o sin cuota (429), se prueba el
+# siguiente; cada modelo tiene su propia cuota. GEMINI_MODEL, si se define, va primero.
 MODELOS = [
     "gemini-3-flash-preview",
-    "gemini-3.5-flash-lite",
-    "gemini-flash-lite-latest",
-    "gemini-3.1-flash-lite-preview",
     "gemini-3.8-flash",
     "gemini-flash-latest",
 ]

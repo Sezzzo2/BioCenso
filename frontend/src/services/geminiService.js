@@ -5,9 +5,6 @@ const API_KEY = import.meta.env.VITE_GEMINI_API_KEY || "";
 // Lista de modelos activos con cuota disponible en Google AI Studio
 const MODELOS_DISPONIBLES = [
   "gemini-3-flash-preview",
-  "gemini-3.5-flash-lite",
-  "gemini-flash-lite-latest",
-  "gemini-3.1-flash-lite-preview",
   "gemini-3.8-flash",
   "gemini-flash-latest",
 ];

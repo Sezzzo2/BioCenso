@@ -295,7 +295,7 @@ function Resultado({ data, finca, fecha, archivo, onCerrar }) {
         {fraseRegistro(diferencia)}
         {total != null && <> Peso total estimado: <b>{total.toLocaleString("es-CO")} kg</b>.</>}
       </p>
-      <CapturaCenso archivo={archivo} captura={data?.captura} />
+      <CapturaCenso archivo={archivo} captura={data?.captura} idCenso={id} />
     </>
   );
 }

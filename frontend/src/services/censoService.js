@@ -115,6 +115,14 @@ export const crearCenso = async ({ idFinca, nota, fechaVuelo, archivo, onProgres
   };
 };
 
+// Marca las reses (recuadro y peso) sobre un fotograma extraído en el navegador
+export const detectarCaptura = async (idCenso, fotograma) => {
+  const datos = new FormData();
+  datos.append("fotograma", fotograma, "fotograma.jpg");
+  const r = await api.post(`/censos/${idCenso}/captura`, datos, { timeout: 180000 });
+  return r.data?.animales ?? [];
+};
+
 const CAMPO_CONTEO_MANUAL = "conteo_manual";
 
 export const registrarConteoManual = async (id, valor) => {

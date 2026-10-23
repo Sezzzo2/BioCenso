@@ -5,6 +5,7 @@ const validate = require("../middlewares/validate");
 const verificarToken = require("../middlewares/verificarToken");
 const verificarAccesoFinca = require("../middlewares/verificarAccesoFinca");
 const uploadCensoArchivo = require("../middlewares/uploadCensoArchivo");
+const uploadFotograma = require("../middlewares/uploadFotograma");
 const { porCensoEnParam } = require("../utils/resolverIdFinca");
 const {
   crearCensoValidator,
@@ -17,6 +18,7 @@ const {
   listarCensosPorFinca,
   obtenerCenso,
   actualizarConteoManual,
+  detectarCaptura,
 } = require("../controllers/censoController");
 
 /**
@@ -124,6 +126,17 @@ router.get(
  *         description: No existe o no pertenece al usuario
  */
 router.get("/:id", verificarToken, idCensoParamValidator, validate, verificarAccesoFinca(porCensoEnParam), obtenerCenso);
+
+// Fotograma del video (extraído en el navegador) para marcar las reses con recuadro y peso
+router.post(
+  "/:id/captura",
+  verificarToken,
+  idCensoParamValidator,
+  validate,
+  verificarAccesoFinca(porCensoEnParam),
+  uploadFotograma.single("fotograma"),
+  detectarCaptura
+);
 
 /**
  * @openapi

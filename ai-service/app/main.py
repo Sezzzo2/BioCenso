@@ -68,7 +68,7 @@ PROMPT_CENSO = """Actúa como el motor de visión por computadora de BioCenso es
 1. Examina con máxima atención todo el video o imagen de principio a fin y cuenta TODAS las vacas/reses que aparecen en la escena o recorrido (de pie, echadas, caminando, agrupadas, parcialmente visibles o en sombra). NO subestimes el conteo: "count" debe ser el número total real de reses identificadas.
 2. Estima el rango de peso promedio por res en kilogramos ("peso_promedio_minimo_kg" y "peso_promedio_maximo_kg") y toma SIEMPRE el valor mínimo del rango de peso como "peso_estimado_promedio".
 3. Calcula "peso_total_estimado" = "count" * "peso_estimado_promedio".
-4. Elige el fotograma donde se vean más reses con claridad. En "captura.segundo" indica su segundo exacto dentro del video (usa 0 si es una imagen). Para CADA res visible en ese fotograma agrega un elemento a "captura.animales" con su recuadro "box_2d" = [ymin, xmin, ymax, xmax] en coordenadas normalizadas de 0 a 1000 sobre ese fotograma, y su peso individual estimado en kilogramos en "peso_kg".
+4. Elige el fotograma donde se vean más reses con claridad. En "captura.segundo" indica su segundo exacto dentro del video (usa 0 si es una imagen). Para CADA res visible en ese fotograma agrega un elemento a "captura.animales" con su recuadro "box_2d" = [ymin, xmin, ymax, xmax] en coordenadas normalizadas de 0 a 1000 sobre ese fotograma, y su peso individual estimado en kilogramos en "peso_kg". No marques otros animales (perros, caballos, cabras).
 
 Responde ÚNICAMENTE con JSON válido:
 {
@@ -142,13 +142,10 @@ def subir_archivo(archivo, tamano, mime, nombre):
     return info
 
 
-def leer_captura(datos):
-    """Normaliza el fotograma con sus recuadros; devuelve None si el modelo no lo envió bien."""
-    captura = datos.get("captura")
-    if not isinstance(captura, dict):
-        return None
+def leer_animales(lista):
+    """Normaliza los recuadros [ymin, xmin, ymax, xmax] (0-1000) y el peso de cada res."""
     animales = []
-    for a in (captura.get("animales") or [])[:300]:
+    for a in (lista if isinstance(lista, list) else [])[:300]:
         caja = a.get("box_2d") if isinstance(a, dict) else None
         if not isinstance(caja, list) or len(caja) != 4:
             continue
@@ -160,13 +157,28 @@ def leer_captura(datos):
             continue
         if ymax > ymin and xmax > xmin:
             animales.append({"caja": [ymin, xmin, ymax, xmax], "peso_kg": peso})
-    if not animales:
+    return animales
+
+
+def leer_captura(datos):
+    """Segundo del fotograma elegido y, si llegaron, sus recuadros. None si el modelo no lo envió."""
+    captura = datos.get("captura")
+    if not isinstance(captura, dict):
         return None
     try:
         segundo = max(0.0, float(captura.get("segundo") or 0))
     except (TypeError, ValueError):
         segundo = 0.0
-    return {"segundo": round(segundo, 2), "animales": animales}
+    return {"segundo": round(segundo, 2), "animales": leer_animales(captura.get("animales"))}
+
+
+PROMPT_CAJAS = """Esta es una imagen aérea de un potrero tomada por un dron. Detecta CADA res (bovino: vaca, toro, novillo, ternero) visible, incluidas las que están echadas, en sombra o parcialmente fuera del borde.
+No marques otros animales (perros, caballos, cabras, ovejas, aves) ni objetos.
+Para cada res da su recuadro "box_2d" = [ymin, xmin, ymax, xmax] ajustado al cuerpo, en coordenadas normalizadas de 0 a 1000 sobre esta misma imagen, y su peso individual estimado en kilogramos en "peso_kg".
+
+Responde ÚNICAMENTE con JSON válido:
+{"animales": [{"box_2d": [412, 230, 470, 290], "peso_kg": 360}]}
+Si no hay reses, responde {"animales": []}."""
 
 
 app = FastAPI(title="BioCenso AI Service")
@@ -244,3 +256,31 @@ def predict(imagen: UploadFile = File(...), x_servicio_token: str = Header(defau
         "processing_time": tiempo_procesamiento,
         "model": "YOLOv26s",
     }
+
+
+# Marca las reses sobre una imagen exacta (el fotograma que el navegador extrajo del video).
+# Así los recuadros coinciden con lo que se ve, sin depender de que el segundo sea preciso.
+@app.post("/detectar")
+def detectar(fotograma: UploadFile = File(...), x_servicio_token: str = Header(default="")):
+    if SERVICIO_TOKEN and not hmac.compare_digest(x_servicio_token, SERVICIO_TOKEN):
+        raise HTTPException(status_code=401, detail="No autorizado")
+    if not API_KEY:
+        raise HTTPException(status_code=503, detail="GEMINI_API_KEY no está configurada")
+    contenido = fotograma.file.read()
+    payload = {
+        "contents": [{"parts": [
+            {"inlineData": {"mimeType": fotograma.content_type or "image/jpeg", "data": base64.b64encode(contenido).decode("utf-8")}},
+            {"text": PROMPT_CAJAS},
+        ]}],
+        "generationConfig": {"responseMimeType": "application/json", "temperature": 0.1},
+    }
+    raw_resp = llamar_gemini(json.dumps(payload).encode("utf-8"))
+    texto = (
+        raw_resp.get("candidates", [{}])[0]
+        .get("content", {})
+        .get("parts", [{}])[0]
+        .get("text", "{}")
+    )
+    datos = json.loads(texto)
+    lista = datos.get("animales") if isinstance(datos, dict) else datos
+    return {"animales": leer_animales(lista)}

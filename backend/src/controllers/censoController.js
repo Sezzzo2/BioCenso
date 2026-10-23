@@ -107,4 +107,31 @@ async function actualizarConteoManual(req, res) {
   res.json(result.rows[0]);
 }
 
-module.exports = { crearCenso, listarCensosPorFinca, obtenerCenso, actualizarConteoManual };
+// Marca las reses sobre el fotograma que el navegador extrajo del video del censo.
+// No se guarda nada: el recuadro solo se muestra en el resultado.
+async function detectarCaptura(req, res) {
+  if (!req.file) {
+    return res.status(422).json({
+      errores: [{ campo: "fotograma", mensaje: "Debes adjuntar la imagen del fotograma" }],
+    });
+  }
+  try {
+    const formData = new FormData();
+    formData.append("fotograma", req.file.buffer, {
+      filename: "fotograma.jpg",
+      contentType: req.file.mimetype,
+    });
+    const respuesta = await axios.post(`${AI_SERVICE_URL}/detectar`, formData, {
+      headers: { ...formData.getHeaders(), "X-Servicio-Token": process.env.AI_SERVICE_TOKEN || "" },
+      timeout: 180000,
+    });
+    res.json({ animales: Array.isArray(respuesta.data?.animales) ? respuesta.data.animales : [] });
+  } catch {
+    const err = new Error();
+    err.status = 502;
+    err.publicMessage = "No se pudieron marcar las reses en el fotograma";
+    throw err;
+  }
+}
+
+module.exports = { crearCenso, listarCensosPorFinca, obtenerCenso, actualizarConteoManual, detectarCaptura };

@@ -634,3 +634,37 @@ a.finca{text-decoration:none;color:inherit}
 .form-linea > .btn{justify-self:start;white-space:nowrap}
 .tabla-caja td{white-space:nowrap}
 .tabla-caja td.nota-celda{white-space:normal}
+
+/* ---------- Portada pública (sin barra lateral) ---------- */
+.barra-publica{
+  position:sticky;top:0;z-index:10;display:flex;align-items:center;justify-content:space-between;gap:16px;
+  padding:14px clamp(16px,4vw,56px);
+  background:linear-gradient(180deg,rgba(13,23,18,.82),rgba(13,23,18,.55));
+  backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-bottom:1px solid var(--linea);
+}
+.marca-publica{font-weight:700;font-size:1.6rem;letter-spacing:-.02em;text-decoration:none;color:var(--crema)}
+.marca-publica b{color:var(--oliva);font-weight:600}
+.enlaces-publicos{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end}
+.enlace-sec{color:var(--texto);text-decoration:none;padding:8px 12px;border-radius:999px;font-weight:500}
+.enlace-sec:hover{background:rgba(241,243,234,.08);color:var(--crema)}
+.principal-publica{max-width:1240px;margin:0 auto;padding-top:28px}
+.heroe-portada{min-height:min(600px,70dvh)}
+@media (max-width:900px){
+  .enlace-sec{display:none}
+  .marca-publica{font-size:1.3rem}
+  .principal-publica{padding-bottom:48px}
+}
+
+/* Captura del censo: fotograma con recuadros y pesos */
+.captura{margin-top:22px}
+.captura-lienzo{border-radius:14px;overflow:hidden;background:rgba(13,23,18,.6);border:1px solid var(--linea)}
+.captura-lienzo canvas{display:block;width:100%;height:auto}
+.captura figcaption{display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center;margin-top:10px;font-size:.92rem;color:var(--texto)}
+.captura-lista{list-style:none;padding:0;margin:10px 0 0;display:flex;flex-wrap:wrap;gap:6px 14px;font-size:.88rem;color:var(--texto)}
+.captura-lista li{display:inline-flex;align-items:center;gap:6px;font-variant-numeric:tabular-nums}
+.captura-lista b{display:inline-grid;place-items:center;min-width:22px;height:22px;padding:0 5px;border-radius:6px;background:var(--brote);color:var(--brote-tinta);font-size:.8rem}
+@media (max-width:560px){
+  .barra-publica{padding:12px 16px}
+  .enlaces-publicos .btn-oscuro{display:none}
+  .enlaces-publicos .btn{padding:8px 14px}
+}

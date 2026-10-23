@@ -106,3 +106,6 @@ El esquema se crea igual, con `scripts/crearEsquema.js` y la URL pública de la 
 |---|---|
 | `GEMINI_MODEL` | Modelo que se prueba primero; si está saturado se usan los de respaldo |
 | `GEMINI_TIMEOUT_MODELO` / `GEMINI_TIMEOUT_TOTAL` | Segundos de espera por modelo (60) y en total (150) |
+| `GEMINI_LIMITE_EN_LINEA_MB` | Hasta este tamaño (14 MB) el archivo va dentro de la petición; por encima se sube con la API de archivos de Gemini |
+
+En el backend, `CENSO_MAX_MB` (200 por defecto) fija el tamaño máximo del video de un censo.

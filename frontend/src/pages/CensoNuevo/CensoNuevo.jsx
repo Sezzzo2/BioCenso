@@ -4,15 +4,16 @@ import Icon from "../../components/ui/Icon.jsx";
 import StatusBadge from "../../components/ui/StatusBadge.jsx";
 import { AlertMessage, ButtonLink, LoadingState, SelectField } from "../../components/ui/SharedUI.jsx";
 import { useDatosCuenta } from "../../hooks/useDatosCuenta.js";
+import CapturaCenso from "../../components/censos/CapturaCenso.jsx";
 import { crearCenso, idDeCenso } from "../../services/censoService.js";
 import { fechaDeCenso, fraseRegistro, signo } from "../../utils/censos.js";
 import { extraerError } from "../../utils/errores.js";
 import { formatFecha, formatFechaLarga, formatTamano, hoyISO } from "../../utils/format.js";
 
 const CON_BACKEND = import.meta.env.VITE_USE_BACKEND === "true";
-// El backend acepta hasta 20 MB (JPG, PNG, WEBP o MP4)
-const MAX_MB = CON_BACKEND ? 20 : 200;
-const TIPOS = ["video/mp4", "image/jpeg", "image/png", "image/webp"];
+// Mismo límite y formatos que acepta el backend (CENSO_MAX_MB)
+const MAX_MB = 200;
+const TIPOS = ["video/mp4", "video/quicktime", "image/jpeg", "image/png", "image/webp"];
 
 function mensajeDeError(err) {
   if (err?.name === "AbortError" || err?.name === "CanceledError" || err?.code === "ERR_CANCELED") return "";
@@ -68,7 +69,7 @@ export default function Censo() {
     setError("");
     if (!f) return;
     if (CON_BACKEND && !TIPOS.includes(f.type)) {
-      setError("Formato no permitido: sube un video MP4 o una imagen JPG, PNG o WEBP.");
+      setError("Formato no permitido: sube un video MP4 o MOV, o una imagen JPG, PNG o WEBP.");
       return;
     }
     if (!f.type.startsWith("video/") && !f.type.startsWith("image/")) {
@@ -107,7 +108,7 @@ export default function Censo() {
         },
       });
       const finca = fincas.find((f) => String(f.id_finca) === String(fincaElegida));
-      setResultado({ data, finca, fecha, archivo: archivo.name });
+      setResultado({ data, finca, fecha, archivo });
       setResaltado(idDeCenso(data));
       setArchivo(null);
       setNota("");
@@ -180,7 +181,7 @@ export default function Censo() {
               ) : (
                 <>
                   <strong>Arrastra el video aquí</strong>
-                  <em>o haz click para elegirlo. Formato MP4 o foto aérea (máx. {MAX_MB} MB)</em>
+                  <em>o haz click para elegirlo. Formatos MP4 o MOV, o foto aérea (máx. {MAX_MB} MB)</em>
                 </>
               )}
             </label>
@@ -207,7 +208,9 @@ export default function Censo() {
             <p>
               {fase === "subiendo"
                 ? `Subiendo video… ${progreso}%`
-                : "Video subido. Detectando bovinos con la IA; puede tardar uno o dos minutos…"}
+                : archivo && archivo.size > 14 * 1024 * 1024
+                  ? "Video subido. La IA lo está revisando; con un video grande puede tardar varios minutos…"
+                  : "Video subido. Detectando bovinos con la IA; puede tardar uno o dos minutos…"}
             </p>
           </div>
         )}
@@ -275,7 +278,7 @@ function Resultado({ data, finca, fecha, archivo, onCerrar }) {
       <div className="resultado-top">
         <div>
           <h3>{id ? `Censo n.º ${id} registrado` : "Censo registrado"}</h3>
-          <p className="meta">{finca?.nombre} · vuelo del {formatFechaLarga(fecha)} · {archivo}</p>
+          <p className="meta">{finca?.nombre} · vuelo del {formatFechaLarga(fecha)} · {archivo?.name}</p>
         </div>
         <div className="acciones" style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
           {id && finca && <ButtonLink to={`/fincas/${finca.id_finca}/censos/${id}`} size="small">Ver ficha del censo</ButtonLink>}
@@ -292,6 +295,7 @@ function Resultado({ data, finca, fecha, archivo, onCerrar }) {
         {fraseRegistro(diferencia)}
         {total != null && <> Peso total estimado: <b>{total.toLocaleString("es-CO")} kg</b>.</>}
       </p>
+      <CapturaCenso archivo={archivo} captura={data?.captura} />
     </>
   );
 }

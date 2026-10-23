@@ -4,9 +4,7 @@ import Icon from "../components/ui/Icon.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
 
 const TITULOS = [
-  [/^\/$/, "Inicio"],
-  [/^\/login$/, "Iniciar sesión"],
-  [/^\/registro$/, "Crear cuenta"],
+  [/^\/inicio$/, "Inicio"],
   [/^\/censos/, "Censo"],
   [/^\/fincas\/[^/]+\/censos\//, "Censo"],
   [/^\/fincas/, "Fincas"],
@@ -44,9 +42,9 @@ export default function MainLayout() {
       <div className="paisaje" aria-hidden="true" />
       <div className="app">
         <aside className="lateral" aria-label="Navegación principal">
-          <Link className="marca" to="/" aria-label="BioCenso, inicio"><b>BIO</b><span>CENSO</span></Link>
+          <Link className="marca" to="/inicio" aria-label="BioCenso, inicio"><b>BIO</b><span>CENSO</span></Link>
           <ul className="nav">
-            <li><NavLink to="/" end><Icon name="home" />Inicio</NavLink></li>
+            <li><NavLink to="/inicio" end><Icon name="home" />Inicio</NavLink></li>
             <li>
               <Link to="/censos" aria-current={enCenso ? "page" : undefined}>
                 <Icon name="escaner" />Censo
@@ -78,7 +76,7 @@ export default function MainLayout() {
 
         <main className="principal" id="contenido" tabIndex={-1}>
           <div className="barra-sup">
-            <Link className="marca-movil" to="/"><b>BIO</b>CENSO</Link>
+            <Link className="marca-movil" to="/inicio"><b>BIO</b>CENSO</Link>
             <a className="contacto" href="mailto:contacto@biocenso.co">contacto</a>
           </div>
           <div className="pagina" key={pathname}>

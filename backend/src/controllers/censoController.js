@@ -1,11 +1,12 @@
+const fs = require("fs");
 const axios = require("axios");
 const FormData = require("form-data");
 const pool = require("../config/db");
 
 const AI_SERVICE_URL = process.env.AI_SERVICE_URL || "http://localhost:8000";
-// Analizar un video con Gemini puede tardar más de un minuto
-// Incluye el tiempo de despertar el servicio de IA si estaba dormido (plan gratis)
-const AI_TIMEOUT_MS = Number(process.env.AI_TIMEOUT_MS) || 240000;
+// Incluye despertar el servicio de IA (plan gratis), subir un video grande a Gemini,
+// esperar a que lo procese y generar la respuesta
+const AI_TIMEOUT_MS = Number(process.env.AI_TIMEOUT_MS) || 600000;
 
 async function crearCenso(req, res) {
   const { id_finca, nota, fecha_vuelo } = req.body;
@@ -24,19 +25,22 @@ async function crearCenso(req, res) {
   const idCenso = censoInicial.rows[0].id_censo;
 
   try {
-    // 2. Reenviar el archivo al microservicio de IA (mock por ahora)
+    // 2. Reenviar el archivo al servicio de IA leyéndolo del disco por partes
     const formData = new FormData();
-    formData.append("imagen", req.file.buffer, {
+    formData.append("imagen", fs.createReadStream(req.file.path), {
       filename: req.file.originalname,
       contentType: req.file.mimetype,
+      knownLength: req.file.size,
     });
 
     const respuestaIA = await axios.post(`${AI_SERVICE_URL}/predict`, formData, {
       headers: { ...formData.getHeaders(), "X-Servicio-Token": process.env.AI_SERVICE_TOKEN || "" },
       timeout: AI_TIMEOUT_MS,
+      maxBodyLength: Infinity,
+      maxContentLength: Infinity,
     });
 
-    const { count, peso_estimado_promedio, processing_time } = respuestaIA.data;
+    const { count, peso_estimado_promedio, processing_time, captura } = respuestaIA.data;
 
     // 3. Guardar el resultado de la detección
     const deteccion = await pool.query(
@@ -50,9 +54,11 @@ async function crearCenso(req, res) {
       [idCenso, "Completado", processing_time]
     );
 
+    // La captura (fotograma con recuadros y pesos) no se guarda: se muestra al terminar el censo
     res.status(201).json({
       censo: censoFinal.rows[0],
       deteccion: deteccion.rows[0],
+      captura: captura ?? null,
     });
   } catch (error) {
     // Si la IA falla o no responde, el censo NO debe quedar "Procesando" para siempre

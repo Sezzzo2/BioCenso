@@ -22,7 +22,7 @@ export default function Login() {
   const location = useLocation();
   const destino = location.state?.from?.pathname
     ? `${location.state.from.pathname}${location.state.from.search ?? ""}`
-    : "/";
+    : "/inicio";
 
   const [correo, setCorreo] = useState("");
   const [contrasena, setContrasena] = useState("");

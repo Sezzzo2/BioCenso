@@ -19,7 +19,7 @@ function errorHandler(err, req, res, next) {
   }
 
   if (err.code === "LIMIT_FILE_SIZE") {
-    return res.status(413).json({ error: "El archivo supera el tamaño máximo permitido (5 MB para fotos, 20 MB para censos)" });
+    return res.status(413).json({ error: "El archivo supera el tamaño máximo permitido (5 MB para fotos, 200 MB para censos)" });
   }
 
   if (err.type === "entity.too.large") {

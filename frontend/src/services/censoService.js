@@ -62,7 +62,7 @@ export const crearCenso = async ({ idFinca, nota, fechaVuelo, archivo, onProgres
     datos.append("imagen", archivo);
     const r = await api.post("/censos", datos, {
       signal,
-      timeout: 300000,
+      timeout: 660000,
       onUploadProgress: (e) => {
         if (e.total) onProgress?.(Math.round((e.loaded * 100) / e.total));
       },

@@ -1,3 +1,4 @@
+const fs = require("fs");
 const express = require("express");
 const router = express.Router();
 const validate = require("../middlewares/validate");
@@ -56,6 +57,13 @@ router.post(
   "/",
   verificarToken,
   uploadCensoArchivo.single("imagen"),
+  // El video queda en un temporal del disco: se borra al responder, haya éxito o error
+  (req, res, next) => {
+    res.on("close", () => {
+      if (req.file?.path) fs.promises.unlink(req.file.path).catch(() => {});
+    });
+    next();
+  },
   crearCensoValidator,
   validate,
   verificarAccesoFinca((req) => Number(req.body.id_finca)),

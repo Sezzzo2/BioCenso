@@ -104,12 +104,6 @@ img{display:block;max-width:100%}
 
 .principal{min-width:0;padding:22px clamp(18px,3.4vw,52px) 64px;position:relative}
 .barra-sup{display:flex;justify-content:flex-end;min-height:24px}
-.contacto{
-  color:#d9d86a;font-weight:600;font-size:.92rem;text-decoration:none;
-  padding:6px 14px;border-radius:999px;background:rgba(13,23,18,.62);
-  backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
-}
-.contacto:hover{background:rgba(13,23,18,.85)}
 
 .vista{display:none;animation:entra .6s var(--ease)}
 .vista.activa{display:block}

@@ -77,7 +77,6 @@ export default function MainLayout() {
         <main className="principal" id="contenido" tabIndex={-1}>
           <div className="barra-sup">
             <Link className="marca-movil" to="/inicio"><b>BIO</b>CENSO</Link>
-            <a className="contacto" href="mailto:contacto@biocenso.co">contacto</a>
           </div>
           <div className="pagina" key={pathname}>
             <Outlet />

@@ -1,4 +1,4 @@
-﻿# Despliegue de BioCenso (rama `main`)
+# Despliegue de BioCenso (rama `main`)
 
 ```
 Firebase Hosting (página)  ──HTTPS──▶  Railway: backend (Node)  ──▶  Neon: PostgreSQL

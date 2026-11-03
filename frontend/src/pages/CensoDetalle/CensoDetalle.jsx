@@ -30,20 +30,14 @@ function CapturaGuardada({ idCenso }) {
   }, [idCenso]);
 
   const { captura, error } = estado;
+  const enImagen = captura?.pesos.filter((p) => p.origen === "imagen" || !p.origen).length ?? 0;
   return (
     <section className="panel panel-solido panel-pad bloque" aria-labelledby="t-captura">
       <div className="bloque-cab">
         <div>
-          <h2 id="t-captura">Captura del censo</h2>
-          <p className="sub">
-            {captura
-              ? `${captura.segundo != null ? `Fotograma del segundo ${Math.round(captura.segundo)} · ` : ""}${captura.pesos.length} bovinos marcados. Recuadros y pesos aproximados estimados por la IA.`
-              : "Fotograma con cada bovino numerado y su peso estimado."}
-          </p>
+          <h2 id="t-captura">Captura y pesos por bovino</h2>
+          <p>Cada bovino marcado en la imagen lleva el mismo número que en la tabla. Los pesos son estimaciones de la IA.</p>
         </div>
-        {captura && (
-          <a className="btn btn-oscuro btn-sm" href={captura.imagen_url} target="_blank" rel="noreferrer">Abrir imagen</a>
-        )}
       </div>
       {cargando ? (
         <LoadingState>Cargando la captura...</LoadingState>
@@ -51,7 +45,26 @@ function CapturaGuardada({ idCenso }) {
         <AlertMessage>{error}</AlertMessage>
       ) : captura ? (
         <div className="captura-ficha">
-          <img src={captura.imagen_url} alt={`Fotograma con ${captura.pesos.length} bovinos numerados y su peso estimado`} />
+          <figure className="captura-figura">
+            {captura.imagen_url ? (
+              <>
+                <a className="captura-lienzo" href={captura.imagen_url} target="_blank" rel="noreferrer">
+                  <img src={captura.imagen_url} alt={`Fotograma con ${enImagen} bovinos numerados y su peso estimado`} />
+                </a>
+                <figcaption>
+                  <span>
+                    {Number(captura.segundo) > 0 ? `Fotograma del segundo ${Math.round(captura.segundo)} · ` : ""}
+                    {enImagen} de {captura.pesos.length} bovinos marcados
+                  </span>
+                  <a className="btn-texto" href={captura.imagen_url} target="_blank" rel="noreferrer">Abrir imagen completa</a>
+                </figcaption>
+              </>
+            ) : (
+              <div className="captura-lienzo captura-aviso texto-suave">
+                No se pudo marcar la imagen de este censo; la tabla sí quedó guardada.
+              </div>
+            )}
+          </figure>
           <TablaPesos pesos={captura.pesos} />
         </div>
       ) : (
@@ -196,7 +209,13 @@ export default function CensoDetalle() {
             {difRegistro != null && <p className="frase">{fraseRegistro(difRegistro)}</p>}
           </section>
 
-          <form className="panel panel-solido panel-pad bloque" onSubmit={guardar} noValidate>
+          <CapturaGuardada idCenso={idCenso} />
+        </>
+      )}
+
+      <div className="ficha-pie">
+        {completado && (
+          <form className="panel panel-solido panel-pad" onSubmit={guardar} noValidate>
             <h2>Conteo manual</h2>
             <p className="sub">Registra cuántos animales contaste tú en el mismo recorrido, para compararlo con el de la IA.</p>
             {difManual != null && <p className="frase">{fraseManual(difManual)}</p>}
@@ -213,24 +232,22 @@ export default function CensoDetalle() {
             {errorForm && <AlertMessage>{errorForm}</AlertMessage>}
             {ok && <AlertMessage type="success">{ok}</AlertMessage>}
           </form>
-        </>
-      )}
+        )}
 
-      {completado && <CapturaGuardada idCenso={idCenso} />}
-
-      <section className="panel panel-solido panel-pad bloque">
-        <h2>Información del censo</h2>
-        <dl className="dl" style={{ marginTop: 16 }}>
-          <dt>Finca</dt><dd><Link className="fila-link" to={`/fincas/${id}`}>{censo.nombre_finca}</Link></dd>
-          <dt>Fecha del vuelo</dt><dd>{censo.fecha_vuelo ? formatFechaLarga(censo.fecha_vuelo) : "Sin registrar"}</dd>
-          <dt>Procesado</dt><dd>{fechaHora(censo.fecha_procesamiento)}</dd>
-          <dt>Archivo</dt><dd>{censo.nombre_archivo || "—"}</dd>
-          <dt>Estado</dt><dd><StatusBadge estado={censo.estado} /></dd>
-          <dt>Tiempo de análisis</dt>
-          <dd>{censo.tiempo_procesamiento == null ? "—" : Number(censo.tiempo_procesamiento) < 1 ? "menos de 1 s" : `${Number(censo.tiempo_procesamiento).toFixed(1)} s`}</dd>
-          <dt>Nota</dt><dd>{censo.nota || "—"}</dd>
-        </dl>
-      </section>
+        <section className="panel panel-solido panel-pad">
+          <h2>Información del censo</h2>
+          <dl className="dl" style={{ marginTop: 16 }}>
+            <dt>Finca</dt><dd><Link className="fila-link" to={`/fincas/${id}`}>{censo.nombre_finca}</Link></dd>
+            <dt>Fecha del vuelo</dt><dd>{censo.fecha_vuelo ? formatFechaLarga(censo.fecha_vuelo) : "Sin registrar"}</dd>
+            <dt>Procesado</dt><dd>{fechaHora(censo.fecha_procesamiento)}</dd>
+            <dt>Archivo</dt><dd>{censo.nombre_archivo || "—"}</dd>
+            <dt>Estado</dt><dd><StatusBadge estado={censo.estado} /></dd>
+            <dt>Tiempo de análisis</dt>
+            <dd>{censo.tiempo_procesamiento == null ? "—" : Number(censo.tiempo_procesamiento) < 1 ? "menos de 1 s" : `${Number(censo.tiempo_procesamiento).toFixed(1)} s`}</dd>
+            <dt>Nota</dt><dd>{censo.nota || "—"}</dd>
+          </dl>
+        </section>
+      </div>
     </>
   );
 }

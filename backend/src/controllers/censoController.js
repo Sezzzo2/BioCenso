@@ -60,7 +60,7 @@ async function crearCenso(req, res) {
       maxContentLength: Infinity,
     });
 
-    const { count, peso_estimado_promedio, processing_time, captura, modelo_gemini } = respuestaIA.data;
+    const { count, peso_estimado_promedio, processing_time, captura, reses, modelo_gemini } = respuestaIA.data;
 
     // 3. Guardar el resultado de la detección
     const deteccion = await pool.query(
@@ -79,6 +79,8 @@ async function crearCenso(req, res) {
       censo: censoFinal.rows[0],
       deteccion: deteccion.rows[0],
       captura: captura ?? null,
+      // Peso y categoría de cada res contada en el video (no solo las del fotograma)
+      reses: Array.isArray(reses) ? reses : [],
       modelo_gemini: modelo_gemini ?? null,
     });
   } catch (error) {
@@ -163,7 +165,12 @@ async function detectarCaptura(req, res) {
   }
 }
 
-// Lee la tabla de pesos que manda el navegador: [{ n, peso_kg }] con números válidos
+const CATEGORIAS = new Set(["vaca", "toro", "novillo", "novilla", "ternero"]);
+// imagen: marcado en la captura · video: contado en otro momento del vuelo · promedio: sin peso propio
+const ORIGENES = new Set(["imagen", "video", "promedio"]);
+
+// Lee la tabla de bovinos contados que manda el navegador:
+// [{ n, peso_kg, categoria?, origen?, segundo? }] con valores válidos
 function leerPesos(texto) {
   let lista;
   try {
@@ -176,9 +183,17 @@ function leerPesos(texto) {
   for (const fila of lista) {
     const n = Number(fila?.n);
     const peso = fila?.peso_kg == null ? null : Number(fila.peso_kg);
+    const segundo = fila?.segundo == null ? null : Number(fila.segundo);
     if (!Number.isInteger(n) || n < 1) return null;
     if (peso != null && !(Number.isFinite(peso) && peso >= 0 && peso <= 3000)) return null;
-    pesos.push({ n, peso_kg: peso == null ? null : Math.round(peso) });
+    if (segundo != null && !(Number.isFinite(segundo) && segundo >= 0)) return null;
+    pesos.push({
+      n,
+      peso_kg: peso == null ? null : Math.round(peso),
+      categoria: CATEGORIAS.has(fila?.categoria) ? fila.categoria : null,
+      origen: ORIGENES.has(fila?.origen) ? fila.origen : null,
+      segundo: segundo == null ? null : Math.round(segundo * 10) / 10,
+    });
   }
   return pesos;
 }
@@ -198,22 +213,20 @@ const subirACloudinary = (buffer, idCenso) =>
       .end(buffer);
   });
 
-// Guarda en la ficha del censo la imagen con los recuadros y la tabla de pesos
+// Guarda en la ficha del censo la tabla de bovinos contados y, si llegó, la imagen con los
+// recuadros. Sin imagen (la IA no pudo marcar el fotograma) se conserva la que hubiera.
 async function guardarCaptura(req, res) {
   const { id } = req.params;
-  if (!req.file) {
-    return res.status(422).json({ errores: [{ campo: "imagen", mensaje: "Debes adjuntar la imagen de la captura" }] });
-  }
   const pesos = leerPesos(req.body.pesos);
   if (!pesos) {
     return res.status(422).json({ errores: [{ campo: "pesos", mensaje: "La tabla de pesos no es válida" }] });
   }
-  const segundo = Number(req.body.segundo);
+  const segundo = req.body.segundo == null || req.body.segundo === "" ? NaN : Number(req.body.segundo);
   const modelo = String(req.body.modelo ?? "").slice(0, 80) || null;
 
-  let subida;
+  let subida = null;
   try {
-    subida = await subirACloudinary(req.file.buffer, id);
+    if (req.file) subida = await subirACloudinary(req.file.buffer, id);
   } catch (error) {
     console.error("No se pudo subir la captura del censo", id, error.message);
     const err = new Error();
@@ -224,7 +237,7 @@ async function guardarCaptura(req, res) {
 
   const result = await pool.query("SELECT * FROM fn_guardar_captura_censo($1, $2, $3, $4, $5)", [
     id,
-    subida.secure_url,
+    subida?.secure_url ?? null,
     Number.isFinite(segundo) ? segundo : null,
     modelo,
     JSON.stringify(pesos),

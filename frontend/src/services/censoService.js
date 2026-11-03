@@ -123,10 +123,10 @@ export const detectarCaptura = async (idCenso, fotograma) => {
   return { animales: r.data?.animales ?? [], modelo: r.data?.modelo_gemini ?? null };
 };
 
-// Guarda en la ficha del censo la imagen con recuadros y la tabla [{ n, peso_kg }]
+// Guarda en la ficha del censo la tabla de bovinos contados y, si la hay, la imagen con recuadros
 export const guardarCaptura = async (idCenso, { imagen, pesos, segundo, modelo }) => {
   const datos = new FormData();
-  datos.append("imagen", imagen, `captura-censo-${idCenso}.jpg`);
+  if (imagen) datos.append("imagen", imagen, `captura-censo-${idCenso}.jpg`);
   datos.append("pesos", JSON.stringify(pesos));
   if (segundo != null) datos.append("segundo", String(segundo));
   if (modelo) datos.append("modelo", modelo);

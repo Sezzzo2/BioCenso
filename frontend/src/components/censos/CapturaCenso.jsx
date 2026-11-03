@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { detectarCaptura, guardarCaptura } from "../../services/censoService.js";
 import TablaPesos from "./TablaPesos.jsx";
+import Icon from "../ui/Icon.jsx";
+import { armarTablaBovinos } from "../../utils/bovinos.js";
 import { extraerError } from "../../utils/errores.js";
 
 const VERDE = "#86e05b";
@@ -162,42 +164,58 @@ function dibujar(cv, fotograma, animales) {
 
 const comoBlob = (cv) => new Promise((ok) => cv.toBlob(ok, "image/jpeg", 0.9));
 
-// Fotograma con un recuadro y el peso de cada res.
-// En videos el navegador extrae el fotograma que eligió la IA y le pide marcar las reses
-// sobre esa misma imagen, para que los recuadros coincidan con lo que se ve.
-export default function CapturaCenso({ archivo, captura, idCenso, idFinca }) {
+// Fotograma con un recuadro, el número y el peso de cada res, junto a la tabla de TODOS los
+// bovinos contados en el censo. En videos el navegador extrae el fotograma que eligió la IA y
+// le pide marcar las reses sobre esa misma imagen, para que los recuadros coincidan.
+const SIN_RESES = []; // constante: un [] nuevo en cada render volvería a lanzar la captura
+
+export default function CapturaCenso({ archivo, captura, idCenso, idFinca, conteo = 0, pesoPromedio = null, reses = SIN_RESES }) {
   const lienzo = useRef(null);
   const fotogramaRef = useRef(null); // se conserva para reintentar sin volver a leer el video
   const [estado, setEstado] = useState("cargando"); // cargando | marcando | listo | sinReses | error
   const [motivo, setMotivo] = useState("");
   const [animales, setAnimales] = useState([]);
-  const [tablaPesos, setTablaPesos] = useState([]);
+  const [tabla, setTabla] = useState([]);
   const [modelo, setModelo] = useState(null);
   const respuestaModelo = useRef(null);
   const [intento, setIntento] = useState(0);
   const [hayFotograma, setHayFotograma] = useState(false);
   const [esperando, setEsperando] = useState(0); // reintento automático en curso
-  const [guardado, setGuardado] = useState(""); // "" | guardando | ok | error
+  const [guardado, setGuardado] = useState({ estado: "", conImagen: false }); // estado: "" | guardando | ok | error
 
-  // Sube la imagen con los recuadros y la tabla a la ficha del censo
-  const guardarEnFicha = useCallback(async (tabla, modeloUsado) => {
-    setGuardado("guardando");
+  // Tabla de todos los contados: primero los marcados en la imagen, luego el resto del vuelo
+  const armar = useCallback((capturados) => armarTablaBovinos({
+    capturados, reses, conteo, pesoPromedio, segundoCaptura: captura?.segundo ?? null,
+  }), [reses, conteo, pesoPromedio, captura]);
+
+  // Guarda la tabla en la ficha del censo y, si se pudo marcar, la imagen con los recuadros
+  const guardarEnFicha = useCallback(async (filas, modeloUsado, conImagen) => {
+    if (!idCenso || !filas.length) return;
+    setGuardado({ estado: "guardando", conImagen });
     try {
       await guardarCaptura(idCenso, {
-        imagen: await comoBlob(lienzo.current),
-        pesos: tabla,
-        segundo: captura?.segundo ?? null,
+        imagen: conImagen ? await comoBlob(lienzo.current) : null,
+        pesos: filas,
+        segundo: conImagen ? captura?.segundo ?? null : null,
         modelo: modeloUsado,
       });
-      setGuardado("ok");
+      setGuardado({ estado: "ok", conImagen });
     } catch {
-      setGuardado("error");
+      setGuardado({ estado: "error", conImagen });
     }
   }, [idCenso, captura]);
 
   useEffect(() => {
     if (!archivo || !captura) return undefined;
     let cancelado = false;
+    // Sin imagen marcada la tabla igual se arma y se guarda con los contados en el video
+    const sinImagen = (nuevoEstado, texto = "") => {
+      const filas = armar([]);
+      setTabla(filas);
+      setMotivo(texto);
+      setEstado(nuevoEstado);
+      guardarEnFicha(filas, null, false);
+    };
     (async () => {
       let fotograma = fotogramaRef.current;
       if (!fotograma) {
@@ -206,10 +224,7 @@ export default function CapturaCenso({ archivo, captura, idCenso, idFinca }) {
           fotogramaRef.current = fotograma;
           setHayFotograma(true);
         } catch {
-          if (!cancelado) {
-            setMotivo("Este navegador no pudo leer el video para sacar el fotograma.");
-            setEstado("error");
-          }
+          if (!cancelado) sinImagen("error", "Este navegador no pudo leer el video para sacar el fotograma.");
           return;
         }
       }
@@ -240,31 +255,30 @@ export default function CapturaCenso({ archivo, captura, idCenso, idFinca }) {
           setModelo(respuesta.modelo);
         }
         if (!marcados.length) {
-          setEstado("sinReses");
+          sinImagen("sinReses");
           return;
         }
         const ordenados = numerar(marcados);
-        const tabla = dibujar(lienzo.current, fotograma, ordenados);
-        setTablaPesos(tabla);
+        dibujar(lienzo.current, fotograma, ordenados);
+        const filas = armar(ordenados);
         setAnimales(ordenados);
+        setTabla(filas);
         setEstado("listo");
-        if (idCenso) guardarEnFicha(tabla, respuestaModelo.current);
+        guardarEnFicha(filas, respuestaModelo.current, true);
       } catch (err) {
         if (!cancelado) {
           setEsperando(0);
-          setMotivo(err?.code === "ECONNABORTED" ? "La IA tardó demasiado en marcar las reses." : extraerError(err));
-          setEstado("error");
+          sinImagen("error", err?.code === "ECONNABORTED" ? "La IA tardó demasiado en marcar las reses." : extraerError(err));
         }
       }
     })();
     return () => { cancelado = true; };
-  }, [archivo, captura, idCenso, intento, guardarEnFicha]);
+  }, [archivo, captura, idCenso, intento, armar, guardarEnFicha]);
 
   if (!captura) return null;
 
-  const pesos = animales.map((a) => a.peso_kg).filter((p) => p != null);
-  const totalMarcado = pesos.reduce((s, p) => s + p, 0);
   const esVideo = archivo?.type.startsWith("video/");
+  const terminado = estado === "listo" || estado === "sinReses" || estado === "error";
 
   const descargar = () => {
     const enlace = document.createElement("a");
@@ -274,63 +288,78 @@ export default function CapturaCenso({ archivo, captura, idCenso, idFinca }) {
   };
 
   return (
-    <figure className="captura">
-      <div className="captura-lienzo">
-        <canvas ref={lienzo} role="img"
-          aria-label={`Fotograma con ${animales.length} reses marcadas y su peso estimado`}
-          hidden={estado !== "listo"} />
-        {(estado === "cargando" || estado === "marcando") && (
-          <p className="cargando" style={{ padding: "18px 20px" }}><i aria-hidden="true" />
-            {estado === "cargando"
-              ? "Preparando la captura…"
-              : esperando
-                ? `La IA está ocupada; reintentando la captura (${esperando} de ${REINTENTOS_AUTOMATICOS})…`
-                : "Marcando las reses en el fotograma…"}
-          </p>
-        )}
-        {estado === "sinReses" && (
-          <p className="texto-suave" style={{ padding: 20 }}>La IA no encontró reses claras en el fotograma elegido para la captura.</p>
-        )}
-        {estado === "error" && (
-          <div style={{ padding: 20 }}>
-            <p>{motivo || "No se pudo preparar la captura del fotograma."}</p>
-            <p className="texto-suave" style={{ marginTop: 4 }}>El conteo y los pesos sí quedaron guardados.</p>
-            {hayFotograma && idCenso && (
-              <button type="button" className="btn btn-oscuro btn-sm" style={{ marginTop: 12 }}
-                onClick={() => { setMotivo(""); setIntento((n) => n + 1); }}>
-                Reintentar captura
-              </button>
+    <section className="captura" aria-labelledby="t-captura-nueva">
+      <div className="captura-cab">
+        <h3 id="t-captura-nueva">Captura y pesos por bovino</h3>
+        <EstadoGuardado guardado={guardado} idFinca={idFinca} idCenso={idCenso}
+          onReintentar={() => guardarEnFicha(tabla, modelo, guardado.conImagen)} />
+      </div>
+      <div className="captura-ficha">
+        <figure className="captura-figura">
+          <div className="captura-lienzo">
+            <canvas ref={lienzo} role="img"
+              aria-label={`Fotograma con ${animales.length} reses numeradas y su peso estimado`}
+              hidden={estado !== "listo"} />
+            {(estado === "cargando" || estado === "marcando") && (
+              <p className="cargando captura-aviso"><i aria-hidden="true" />
+                {estado === "cargando"
+                  ? "Preparando la captura…"
+                  : esperando
+                    ? `La IA está ocupada; reintentando la captura (${esperando} de ${REINTENTOS_AUTOMATICOS})…`
+                    : "Marcando las reses en el fotograma…"}
+              </p>
+            )}
+            {estado === "sinReses" && (
+              <p className="captura-aviso texto-suave">La IA no encontró reses claras en el fotograma elegido para la captura.</p>
+            )}
+            {estado === "error" && (
+              <div className="captura-aviso">
+                <p>{motivo || "No se pudo preparar la captura del fotograma."}</p>
+                <p className="texto-suave">El conteo y la tabla de pesos sí quedaron guardados.</p>
+                {hayFotograma && idCenso && (
+                  <button type="button" className="btn btn-oscuro btn-sm"
+                    onClick={() => { setMotivo(""); setIntento((n) => n + 1); }}>
+                    Reintentar captura
+                  </button>
+                )}
+              </div>
             )}
           </div>
+          {estado === "listo" && (
+            <figcaption>
+              <span>
+                {esVideo ? `Fotograma del segundo ${Math.round(captura.segundo)}` : "Imagen analizada"} · {animales.length} de {Math.max(conteo, animales.length)} bovinos marcados
+              </span>
+              <span className="tenue">Recuadros y pesos aproximados{modelo ? ` · ${modelo}` : ""}</span>
+              <button type="button" className="btn-texto" onClick={descargar}>Descargar imagen</button>
+            </figcaption>
+          )}
+        </figure>
+        {terminado ? (
+          <TablaPesos pesos={tabla} />
+        ) : (
+          <div className="bovinos bovinos-espera"><p className="texto-suave">La tabla de pesos aparece cuando termine la captura.</p></div>
         )}
       </div>
-      {estado === "listo" && (
-        <figcaption>
-          <span>
-            {esVideo ? `Fotograma del segundo ${Math.round(captura.segundo)}` : "Imagen analizada"} ·{" "}
-            {animales.length} reses marcadas
-            {pesos.length > 0 && <> · {totalMarcado.toLocaleString("es-CO")} kg entre todas</>}
-          </span>
-          <span className="tenue">
-            Recuadros y pesos aproximados estimados por la IA{modelo ? ` (${modelo})` : ""}.
-          </span>
-          <button type="button" className="btn-texto" onClick={descargar}>Descargar captura</button>
-          {guardado === "guardando" && <span className="captura-guardado">Guardando en la ficha del censo…</span>}
-          {guardado === "ok" && (
-            <span className="captura-guardado ok">
-              Guardada en la ficha del censo
-              {idFinca && <> · <Link className="btn-texto" to={`/fincas/${idFinca}/censos/${idCenso}`}>Ver ficha</Link></>}
-            </span>
-          )}
-          {guardado === "error" && (
-            <span className="captura-guardado">
-              No se pudo guardar en la ficha.{" "}
-              <button type="button" className="btn-texto" onClick={() => guardarEnFicha(tablaPesos, modelo)}>Reintentar</button>
-            </span>
-          )}
-        </figcaption>
-      )}
-      {estado === "listo" && <TablaPesos pesos={tablaPesos} />}
-    </figure>
+    </section>
+  );
+}
+
+function EstadoGuardado({ guardado, idFinca, idCenso, onReintentar }) {
+  if (guardado.estado === "guardando") return <p className="captura-guardado">Guardando en la ficha del censo…</p>;
+  if (guardado.estado === "error") {
+    return (
+      <p className="captura-guardado">
+        No se pudo guardar en la ficha. <button type="button" className="btn-texto" onClick={onReintentar}>Reintentar</button>
+      </p>
+    );
+  }
+  if (guardado.estado !== "ok") return null;
+  return (
+    <p className="captura-guardado ok">
+      <Icon name="check" size={16} strokeWidth={2.6} />
+      {guardado.conImagen ? "Guardada en la ficha del censo" : "Tabla guardada en la ficha del censo"}
+      {idFinca && <Link className="btn-texto" to={`/fincas/${idFinca}/censos/${idCenso}`}>Ver ficha</Link>}
+    </p>
   );
 }

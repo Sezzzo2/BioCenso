@@ -86,12 +86,11 @@ function Bienvenida({ fincas }) {
   return (
     <>
       <header className="bienvenida">
-        <p className="eyebrow">Primeros pasos</p>
         <h1>Bienvenido a BioCenso{usuario?.nombre ? `, ${usuario.nombre}` : ""}</h1>
         <p className="bajada">Sigue estos tres pasos para hacer tu primer conteo de ganado con dron.</p>
         <div className="progreso-pasos" role="progressbar" aria-valuemin={0} aria-valuemax={3} aria-valuenow={hechos}
           aria-label={`${hechos} de 3 pasos completados`}>
-          <span style={{ width: `${(hechos / 3) * 100}%` }} />
+          <span style={{ transform: `scaleX(${hechos / 3})` }} />
         </div>
         <p className="progreso-texto">{hechos} de 3 pasos completados</p>
       </header>

@@ -111,6 +111,7 @@ PROMPT_CENSO = """Actúa como el motor de visión por computadora de BioCenso es
 2. Estima el rango del peso promedio por res en kilogramos ("peso_promedio_minimo_kg" y "peso_promedio_maximo_kg") y el peso promedio más probable ("peso_estimado_promedio"), según la referencia de abajo.
 3. Calcula "peso_total_estimado" = "count" * "peso_estimado_promedio".
 4. Elige el fotograma donde se vean más reses con claridad. En "captura.segundo" indica su segundo exacto dentro del video (usa 0 si es una imagen). Para CADA res visible en ese fotograma agrega un elemento a "captura.animales" con su recuadro "box_2d" = [ymin, xmin, ymax, xmax] en coordenadas normalizadas de 0 a 1000 sobre ese fotograma, y su peso individual estimado en kilogramos en "peso_kg". No marques otros animales (perros, caballos, cabras).
+5. En "reses" agrega UN elemento por CADA res contada en todo el video (exactamente "count" elementos, sin repetir la misma res): su "categoria" (vaca, toro, novillo, novilla o ternero), su peso individual estimado en "peso_kg" y el segundo del video en que mejor se ve en "segundo" (0 si es una imagen). El promedio de estos pesos debe coincidir con "peso_estimado_promedio".
 
 Responde ÚNICAMENTE con JSON válido:
 {
@@ -124,7 +125,10 @@ Responde ÚNICAMENTE con JSON válido:
     "animales": [
       {"box_2d": [412, 230, 470, 290], "peso_kg": 470}
     ]
-  }
+  },
+  "reses": [
+    {"categoria": "vaca", "peso_kg": 470, "segundo": 12.5}
+  ]
 }
 
 """ + REFERENCIA_PESOS
@@ -221,8 +225,33 @@ def leer_animales(lista):
         except (TypeError, ValueError):
             continue
         if ymax > ymin and xmax > xmin:
-            animales.append({"caja": [ymin, xmin, ymax, xmax], "peso_kg": peso})
+            animales.append({"caja": [ymin, xmin, ymax, xmax], "peso_kg": peso, "categoria": categoria_de(a.get("categoria"))})
     return animales
+
+
+CATEGORIAS = {"vaca", "toro", "novillo", "novilla", "ternero"}
+
+
+def categoria_de(valor):
+    texto = str(valor or "").strip().lower()
+    texto = "ternero" if texto.startswith("terner") else texto
+    return texto if texto in CATEGORIAS else None
+
+
+def leer_reses(lista, conteo):
+    """Peso y categoría de cada res contada en el video, como mucho tantas como el conteo."""
+    reses = []
+    for r in (lista if isinstance(lista, list) else [])[:max(0, conteo)]:
+        if not isinstance(r, dict):
+            continue
+        try:
+            peso = round(float(r.get("peso_kg")))
+            segundo = round(max(0.0, float(r.get("segundo") or 0)), 1)
+        except (TypeError, ValueError):
+            continue
+        if 30 <= peso <= 1500:
+            reses.append({"categoria": categoria_de(r.get("categoria")), "peso_kg": peso, "segundo": segundo})
+    return reses
 
 
 def leer_captura(datos):
@@ -239,12 +268,12 @@ def leer_captura(datos):
 
 PROMPT_CAJAS = """Esta es una imagen aérea de un potrero tomada por un dron. Detecta CADA res (bovino: vaca, toro, novillo, ternero) visible, incluidas las que están echadas, en sombra o parcialmente fuera del borde.
 No marques otros animales (perros, caballos, cabras, ovejas, aves) ni objetos.
-Para cada res da su recuadro "box_2d" = [ymin, xmin, ymax, xmax] ajustado al cuerpo, en coordenadas normalizadas de 0 a 1000 sobre esta misma imagen, y su peso individual estimado en kilogramos en "peso_kg".
+Para cada res da su recuadro "box_2d" = [ymin, xmin, ymax, xmax] ajustado al cuerpo, en coordenadas normalizadas de 0 a 1000 sobre esta misma imagen, su "categoria" (vaca, toro, novillo, novilla o ternero) y su peso individual estimado en kilogramos en "peso_kg".
 
 """ + REFERENCIA_PESOS + """
 
 Responde ÚNICAMENTE con JSON válido:
-{"animales": [{"box_2d": [412, 230, 470, 290], "peso_kg": 470}]}
+{"animales": [{"box_2d": [412, 230, 470, 290], "categoria": "vaca", "peso_kg": 470}]}
 Si no hay reses, responde {"animales": []}."""
 
 
@@ -320,6 +349,7 @@ def predict(imagen: UploadFile = File(...), x_servicio_token: str = Header(defau
         "peso_total_estimado": peso_total,
         "observaciones": datos.get("observaciones", ""),
         "captura": leer_captura(datos),
+        "reses": leer_reses(datos.get("reses"), conteo),
         "detections": [],
         "processing_time": tiempo_procesamiento,
         "model": "YOLOv26s",

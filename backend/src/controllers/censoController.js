@@ -2,6 +2,7 @@ const fs = require("fs");
 const axios = require("axios");
 const FormData = require("form-data");
 const pool = require("../config/db");
+const cloudinary = require("../config/cloudinary");
 
 const AI_SERVICE_URL = process.env.AI_SERVICE_URL || "http://localhost:8000";
 
@@ -162,4 +163,89 @@ async function detectarCaptura(req, res) {
   }
 }
 
-module.exports = { crearCenso, listarCensosPorFinca, obtenerCenso, actualizarConteoManual, detectarCaptura };
+// Lee la tabla de pesos que manda el navegador: [{ n, peso_kg }] con números válidos
+function leerPesos(texto) {
+  let lista;
+  try {
+    lista = JSON.parse(texto ?? "[]");
+  } catch {
+    return null;
+  }
+  if (!Array.isArray(lista) || lista.length > 1000) return null;
+  const pesos = [];
+  for (const fila of lista) {
+    const n = Number(fila?.n);
+    const peso = fila?.peso_kg == null ? null : Number(fila.peso_kg);
+    if (!Number.isInteger(n) || n < 1) return null;
+    if (peso != null && !(Number.isFinite(peso) && peso >= 0 && peso <= 3000)) return null;
+    pesos.push({ n, peso_kg: peso == null ? null : Math.round(peso) });
+  }
+  return pesos;
+}
+
+// Fuera de producción va a otra carpeta: los ids de una base local repiten los de producción
+// y con overwrite reemplazarían sus capturas
+const CARPETA_CAPTURAS = process.env.NODE_ENV === "production" ? "biocenso/censos" : "biocenso/censos-dev";
+
+const subirACloudinary = (buffer, idCenso) =>
+  new Promise((resolver, rechazar) => {
+    cloudinary.uploader
+      .upload_stream(
+        // Un archivo por censo: al reintentar la captura se reemplaza la anterior
+        { folder: CARPETA_CAPTURAS, public_id: `censo-${idCenso}`, overwrite: true, invalidate: true, resource_type: "image" },
+        (error, resultado) => (error ? rechazar(error) : resolver(resultado))
+      )
+      .end(buffer);
+  });
+
+// Guarda en la ficha del censo la imagen con los recuadros y la tabla de pesos
+async function guardarCaptura(req, res) {
+  const { id } = req.params;
+  if (!req.file) {
+    return res.status(422).json({ errores: [{ campo: "imagen", mensaje: "Debes adjuntar la imagen de la captura" }] });
+  }
+  const pesos = leerPesos(req.body.pesos);
+  if (!pesos) {
+    return res.status(422).json({ errores: [{ campo: "pesos", mensaje: "La tabla de pesos no es válida" }] });
+  }
+  const segundo = Number(req.body.segundo);
+  const modelo = String(req.body.modelo ?? "").slice(0, 80) || null;
+
+  let subida;
+  try {
+    subida = await subirACloudinary(req.file.buffer, id);
+  } catch (error) {
+    console.error("No se pudo subir la captura del censo", id, error.message);
+    const err = new Error();
+    err.status = 502;
+    err.publicMessage = "No se pudo guardar la imagen de la captura. Intenta de nuevo.";
+    throw err;
+  }
+
+  const result = await pool.query("SELECT * FROM fn_guardar_captura_censo($1, $2, $3, $4, $5)", [
+    id,
+    subida.secure_url,
+    Number.isFinite(segundo) ? segundo : null,
+    modelo,
+    JSON.stringify(pesos),
+  ]);
+  res.status(201).json(result.rows[0]);
+}
+
+async function obtenerCaptura(req, res) {
+  const result = await pool.query("SELECT * FROM fn_obtener_captura_censo($1)", [req.params.id]);
+  if (result.rows.length === 0) {
+    return res.status(404).json({ error: "Este censo no tiene captura guardada" });
+  }
+  res.json(result.rows[0]);
+}
+
+module.exports = {
+  crearCenso,
+  listarCensosPorFinca,
+  obtenerCenso,
+  actualizarConteoManual,
+  detectarCaptura,
+  guardarCaptura,
+  obtenerCaptura,
+};

@@ -649,14 +649,47 @@ a.finca{text-decoration:none;color:inherit}
   .principal-publica{padding-bottom:48px}
 }
 
+/* Inicio para cuentas nuevas: guía de primeros pasos */
+.bienvenida{padding-top:24px;max-width:860px}
+.bienvenida .eyebrow{font-size:.85rem;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--brote)}
+.bienvenida h1{font-size:clamp(2.2rem,4.4vw,3.6rem);font-weight:700;margin-top:8px;text-shadow:0 2px 24px rgba(0,0,0,.35)}
+.progreso-pasos{height:8px;border-radius:999px;background:rgba(241,243,234,.14);margin-top:28px;max-width:420px;overflow:hidden}
+.progreso-pasos span{display:block;height:100%;border-radius:inherit;background:var(--brote);transition:width .6s var(--ease)}
+.progreso-texto{font-size:.88rem;color:var(--texto-suave);margin-top:8px}
+.primeros-pasos{list-style:none;padding:0;margin:28px 0 0;display:grid;gap:14px;max-width:860px}
+.paso-guia{display:grid;grid-template-columns:auto 1fr auto;gap:18px;align-items:center;padding:20px 24px;border:1px solid var(--linea);transition:border-color .2s,opacity .2s}
+.paso-guia.actual{border-color:var(--brote);box-shadow:0 0 0 1px var(--brote),var(--sombra)}
+.paso-guia.bloqueado{opacity:.72}
+.paso-guia-num{width:44px;height:44px;border-radius:50%;display:grid;place-items:center;font-weight:700;font-size:1.15rem;border:2px solid var(--linea-fuerte);color:var(--crema)}
+.paso-guia.actual .paso-guia-num{background:var(--brote);border-color:var(--brote);color:var(--brote-tinta)}
+.paso-guia.hecho .paso-guia-num{background:var(--ok-fondo);border-color:var(--ok);color:var(--ok)}
+.paso-guia-num svg{width:20px;height:20px}
+.paso-guia h2{font-size:1.2rem;font-weight:600;display:flex;align-items:center;flex-wrap:wrap;gap:4px 10px}
+.paso-guia h2 small{font-size:.72rem;font-weight:600;padding:3px 9px;border-radius:999px;background:var(--espera-fondo);color:var(--espera)}
+.paso-guia p{margin-top:4px;color:var(--texto-suave);line-height:1.5;max-width:60ch}
+.paso-guia.hecho p{color:var(--ok)}
+.paso-guia-nota{font-size:.85rem;color:var(--texto-tenue)!important}
+@media (max-width:640px){
+  .paso-guia{grid-template-columns:auto 1fr;padding:18px}
+  .paso-guia > .btn{grid-column:1 / -1;justify-self:start}
+}
+
 /* Captura del censo: fotograma con recuadros y pesos */
 .captura{margin-top:22px}
 .captura-lienzo{border-radius:14px;overflow:hidden;background:rgba(13,23,18,.6);border:1px solid var(--linea)}
 .captura-lienzo canvas{display:block;width:100%;height:auto}
 .captura figcaption{display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center;margin-top:10px;font-size:.92rem;color:var(--texto)}
-.captura-lista{list-style:none;padding:0;margin:10px 0 0;display:flex;flex-wrap:wrap;gap:6px 14px;font-size:.88rem;color:var(--texto)}
-.captura-lista li{display:inline-flex;align-items:center;gap:6px;font-variant-numeric:tabular-nums}
-.captura-lista b{display:inline-grid;place-items:center;min-width:22px;height:22px;padding:0 5px;border-radius:6px;background:var(--brote);color:var(--brote-tinta);font-size:.8rem}
+.captura-guardado{font-size:.88rem;color:var(--texto-suave)}
+.captura-guardado.ok{color:var(--brote)}
+.tabla-pesos{max-width:520px;max-height:420px;overflow-y:auto}
+.tabla-pesos table{min-width:0}
+.tabla-pesos td,.tabla-pesos th{padding:10px 14px}
+.tabla-pesos thead th{position:sticky;top:0;background:var(--pasto-850)}
+.tabla-pesos tfoot th,.tabla-pesos tfoot td{border-top:1px solid var(--linea);border-bottom:0;color:var(--crema);font-weight:600}
+.captura-ficha{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(300px,1fr);gap:20px;align-items:start;margin-top:16px}
+.captura-ficha img{display:block;width:100%;height:auto;border-radius:14px;border:1px solid var(--linea)}
+.captura-ficha .tabla-pesos{margin-top:0;max-width:none}
+@media (max-width:1180px){.captura-ficha{grid-template-columns:1fr}.captura-ficha .tabla-pesos{max-width:520px}}
 @media (max-width:560px){
   .barra-publica{padding:12px 16px}
   .enlaces-publicos .btn-oscuro{display:none}

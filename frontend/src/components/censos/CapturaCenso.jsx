@@ -1,5 +1,7 @@
-import { useEffect, useRef, useState } from "react";
-import { detectarCaptura } from "../../services/censoService.js";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Link } from "react-router-dom";
+import { detectarCaptura, guardarCaptura } from "../../services/censoService.js";
+import TablaPesos from "./TablaPesos.jsx";
 import { extraerError } from "../../utils/errores.js";
 
 const VERDE = "#86e05b";
@@ -78,8 +80,15 @@ function extraerFotograma(archivo, segundo) {
   });
 }
 
-// Dibuja sobre el lienzo visible el fotograma recortado a la zona de las reses, con recuadros y pesos.
-// Devuelve los pesos que no cupieron junto a su recuadro (se numeran y se listan aparte).
+// Numera las reses de izquierda a derecha y de arriba abajo (por franjas), como se leen en la imagen
+function numerar(animales) {
+  const franja = (a) => Math.floor(((a.caja[0] + a.caja[2]) / 2) / 250);
+  return [...animales].sort((a, b) => franja(a) - franja(b) || a.caja[1] - b.caja[1]);
+}
+
+// Dibuja sobre el lienzo visible el fotograma recortado a la zona de las reses, con recuadros,
+// el número de cada bovino y su peso. Si la etiqueta completa no cabe, queda solo el número.
+// Devuelve la tabla [{ n, peso_kg }] con el mismo número que aparece en la imagen.
 function dibujar(cv, fotograma, animales) {
   const zona = zonaDeInteres(animales);
   const sx = (zona.x0 / 1000) * fotograma.width, sy = (zona.y0 / 1000) * fotograma.height;
@@ -124,9 +133,9 @@ function dibujar(cv, fotograma, animales) {
     ctx.fillText(texto, r.x + pad, r.y + pad * 0.7);
   };
   animales.forEach((a, i) => {
-    if (a.peso_kg == null) return;
     const c = cajas[i];
-    const texto = `${a.peso_kg} kg`;
+    const n = i + 1;
+    const texto = a.peso_kg == null ? String(n) : `${n} · ${a.peso_kg} kg`;
     const w = ctx.measureText(texto).width + pad * 2;
     const opciones = [
       { x: c.x, y: c.y - altoEtiqueta - sep },
@@ -140,7 +149,7 @@ function dibujar(cv, fotograma, animales) {
       etiqueta(texto, libre);
       ocupados.push(libre);
     } else {
-      sinLugar.push({ n: sinLugar.length + 1, peso: a.peso_kg, caja: c });
+      sinLugar.push({ n, caja: c });
     }
   });
   ctx.font = `700 ${Math.round(letra * 0.85)}px "DM Sans", system-ui, sans-serif`;
@@ -148,7 +157,7 @@ function dibujar(cv, fotograma, animales) {
     const w = ctx.measureText(String(s.n)).width + pad * 2;
     etiqueta(String(s.n), { x: s.caja.x, y: s.caja.y, w, h: letra * 0.85 + pad * 1.4 });
   }
-  return sinLugar.map(({ n, peso }) => ({ n, peso }));
+  return animales.map((a, i) => ({ n: i + 1, peso_kg: a.peso_kg ?? null }));
 }
 
 const comoBlob = (cv) => new Promise((ok) => cv.toBlob(ok, "image/jpeg", 0.9));
@@ -156,17 +165,35 @@ const comoBlob = (cv) => new Promise((ok) => cv.toBlob(ok, "image/jpeg", 0.9));
 // Fotograma con un recuadro y el peso de cada res.
 // En videos el navegador extrae el fotograma que eligió la IA y le pide marcar las reses
 // sobre esa misma imagen, para que los recuadros coincidan con lo que se ve.
-export default function CapturaCenso({ archivo, captura, idCenso }) {
+export default function CapturaCenso({ archivo, captura, idCenso, idFinca }) {
   const lienzo = useRef(null);
   const fotogramaRef = useRef(null); // se conserva para reintentar sin volver a leer el video
   const [estado, setEstado] = useState("cargando"); // cargando | marcando | listo | sinReses | error
   const [motivo, setMotivo] = useState("");
   const [animales, setAnimales] = useState([]);
-  const [numerados, setNumerados] = useState([]);
+  const [tablaPesos, setTablaPesos] = useState([]);
   const [modelo, setModelo] = useState(null);
+  const respuestaModelo = useRef(null);
   const [intento, setIntento] = useState(0);
   const [hayFotograma, setHayFotograma] = useState(false);
   const [esperando, setEsperando] = useState(0); // reintento automático en curso
+  const [guardado, setGuardado] = useState(""); // "" | guardando | ok | error
+
+  // Sube la imagen con los recuadros y la tabla a la ficha del censo
+  const guardarEnFicha = useCallback(async (tabla, modeloUsado) => {
+    setGuardado("guardando");
+    try {
+      await guardarCaptura(idCenso, {
+        imagen: await comoBlob(lienzo.current),
+        pesos: tabla,
+        segundo: captura?.segundo ?? null,
+        modelo: modeloUsado,
+      });
+      setGuardado("ok");
+    } catch {
+      setGuardado("error");
+    }
+  }, [idCenso, captura]);
 
   useEffect(() => {
     if (!archivo || !captura) return undefined;
@@ -209,15 +236,19 @@ export default function CapturaCenso({ archivo, captura, idCenso }) {
           if (cancelado) return;
           setEsperando(0);
           marcados = respuesta.animales;
+          respuestaModelo.current = respuesta.modelo;
           setModelo(respuesta.modelo);
         }
         if (!marcados.length) {
           setEstado("sinReses");
           return;
         }
-        setNumerados(dibujar(lienzo.current, fotograma, marcados));
-        setAnimales(marcados);
+        const ordenados = numerar(marcados);
+        const tabla = dibujar(lienzo.current, fotograma, ordenados);
+        setTablaPesos(tabla);
+        setAnimales(ordenados);
         setEstado("listo");
+        if (idCenso) guardarEnFicha(tabla, respuestaModelo.current);
       } catch (err) {
         if (!cancelado) {
           setEsperando(0);
@@ -227,7 +258,7 @@ export default function CapturaCenso({ archivo, captura, idCenso }) {
       }
     })();
     return () => { cancelado = true; };
-  }, [archivo, captura, idCenso, intento]);
+  }, [archivo, captura, idCenso, intento, guardarEnFicha]);
 
   if (!captura) return null;
 
@@ -273,11 +304,6 @@ export default function CapturaCenso({ archivo, captura, idCenso }) {
           </div>
         )}
       </div>
-      {estado === "listo" && numerados.length > 0 && (
-        <ol className="captura-lista" aria-label="Peso de las reses numeradas">
-          {numerados.map((r) => <li key={r.n}><b>{r.n}</b>{r.peso} kg</li>)}
-        </ol>
-      )}
       {estado === "listo" && (
         <figcaption>
           <span>
@@ -289,8 +315,22 @@ export default function CapturaCenso({ archivo, captura, idCenso }) {
             Recuadros y pesos aproximados estimados por la IA{modelo ? ` (${modelo})` : ""}.
           </span>
           <button type="button" className="btn-texto" onClick={descargar}>Descargar captura</button>
+          {guardado === "guardando" && <span className="captura-guardado">Guardando en la ficha del censo…</span>}
+          {guardado === "ok" && (
+            <span className="captura-guardado ok">
+              Guardada en la ficha del censo
+              {idFinca && <> · <Link className="btn-texto" to={`/fincas/${idFinca}/censos/${idCenso}`}>Ver ficha</Link></>}
+            </span>
+          )}
+          {guardado === "error" && (
+            <span className="captura-guardado">
+              No se pudo guardar en la ficha.{" "}
+              <button type="button" className="btn-texto" onClick={() => guardarEnFicha(tablaPesos, modelo)}>Reintentar</button>
+            </span>
+          )}
         </figcaption>
       )}
+      {estado === "listo" && <TablaPesos pesos={tablaPesos} />}
     </figure>
   );
 }

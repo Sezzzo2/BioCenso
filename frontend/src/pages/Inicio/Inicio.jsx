@@ -11,8 +11,12 @@ import { formatFecha, formatFechaLarga } from "../../utils/format.js";
 import DetectionPreview from "./DetectionPreview.jsx";
 import { BuenConteo, ComoFunciona, Pie } from "../../components/inicio/Secciones.jsx";
 
-// Inicio dentro de la app (con sesión): presentación, último censo y panel general
+// Inicio dentro de la app (con sesión). Quien todavía no tiene censos ve una guía de
+// primeros pasos; los demás, la presentación, el último censo y el panel general.
 export default function Inicio() {
+  const datos = useDatosCuenta();
+  if (datos.cargando) return <LoadingState>Cargando tu cuenta...</LoadingState>;
+  if (!datos.error && datos.censos.length === 0) return <Bienvenida fincas={datos.fincas} />;
   return (
     <>
       <div className="heroe">
@@ -32,7 +36,7 @@ export default function Inicio() {
         <DetectionPreview />
       </div>
 
-      <PanelGeneral />
+      <PanelGeneral {...datos} />
       <ComoFunciona />
       <BuenConteo />
       <Pie />
@@ -40,16 +44,109 @@ export default function Inicio() {
   );
 }
 
-function PanelGeneral() {
+const RESULTADOS = [
+  ["vaca", "Total de bovinos", "Cuántos animales aparecen en todo el vuelo."],
+  ["barras", "Peso estimado", "Peso promedio por res y peso total del hato."],
+  ["scan", "Captura numerada", "Un fotograma con cada bovino marcado, su número y su peso, guardado en la ficha del censo."],
+  ["history", "Historial", "Cada censo queda guardado para compararlo con tu registro y con los anteriores."],
+];
+
+// Guía para cuentas nuevas: tres pasos en orden hasta el primer censo
+function Bienvenida({ fincas }) {
   const { usuario } = useAuth();
-  const { cargando, error, fincas, censos } = useDatosCuenta();
+  const primera = fincas[0];
+  const conBovinos = fincas.find((f) => f.registrados > 0);
+  const pasos = [
+    {
+      titulo: "Registra tu finca",
+      texto: "Nombre, municipio y departamento. Cada censo y cada bovino quedan asociados a una finca.",
+      hecho: fincas.length > 0,
+      hechoTexto: primera && `${primera.nombre}${fincas.length > 1 ? ` y ${fincas.length - 1} más` : ""}`,
+      accion: { to: "/fincas/nueva", texto: "Registrar finca" },
+    },
+    {
+      titulo: "Registra tus bovinos",
+      texto: "Agrega los animales que tienes en la finca. Así BioCenso compara el conteo del dron con tu inventario.",
+      hecho: Boolean(conBovinos),
+      hechoTexto: conBovinos && `${conBovinos.registrados} en ${conBovinos.nombre}`,
+      opcional: true,
+      accion: primera && { to: `/fincas/${primera.id_finca}/animales/nuevo`, texto: "Registrar bovino" },
+    },
+    {
+      titulo: "Sube el video del dron",
+      texto: "Elige la finca, la fecha del vuelo y el video en MP4 o MOV (hasta 200 MB). El análisis tarda unos minutos.",
+      hecho: false,
+      accion: primera && { to: `/censos?finca=${primera.id_finca}`, texto: "Subir video del censo" },
+    },
+  ];
+  // El paso 2 es recomendado: con la finca registrada ya se puede subir el video
+  const actual = !pasos[0].hecho ? 0 : !pasos[1].hecho ? 1 : 2;
+  const hechos = pasos.filter((p) => p.hecho).length;
+
+  return (
+    <>
+      <header className="bienvenida">
+        <p className="eyebrow">Primeros pasos</p>
+        <h1>Bienvenido a BioCenso{usuario?.nombre ? `, ${usuario.nombre}` : ""}</h1>
+        <p className="bajada">Sigue estos tres pasos para hacer tu primer conteo de ganado con dron.</p>
+        <div className="progreso-pasos" role="progressbar" aria-valuemin={0} aria-valuemax={3} aria-valuenow={hechos}
+          aria-label={`${hechos} de 3 pasos completados`}>
+          <span style={{ width: `${(hechos / 3) * 100}%` }} />
+        </div>
+        <p className="progreso-texto">{hechos} de 3 pasos completados</p>
+      </header>
+
+      <ol className="primeros-pasos">
+        {pasos.map((p, i) => {
+          const disponible = i <= actual || (i === 2 && pasos[0].hecho);
+          const clase = p.hecho ? "hecho" : i === actual ? "actual" : disponible ? "" : "bloqueado";
+          return (
+            <li key={p.titulo} className={`panel paso-guia ${clase}`}>
+              <span className="paso-guia-num" aria-hidden="true">{p.hecho ? <Icon name="check" strokeWidth={3} /> : i + 1}</span>
+              <div className="paso-guia-cuerpo">
+                <h2>
+                  {p.titulo}
+                  {p.opcional && !p.hecho && <small>Recomendado</small>}
+                </h2>
+                <p>{p.hecho ? `Listo: ${p.hechoTexto}.` : p.texto}</p>
+                {!p.hecho && !disponible && <p className="paso-guia-nota">Disponible cuando registres tu finca.</p>}
+              </div>
+              {!p.hecho && disponible && p.accion && (
+                <ButtonLink to={p.accion.to} variant={i === actual ? undefined : "outline"} size="small">
+                  {p.accion.texto}
+                </ButtonLink>
+              )}
+            </li>
+          );
+        })}
+      </ol>
+
+      <section className="seccion" aria-labelledby="t-resultados">
+        <h2 id="t-resultados">Qué obtienes de cada censo</h2>
+        <div className="panel consejos">
+          {RESULTADOS.map(([icono, titulo, texto]) => (
+            <div className="consejo" key={titulo}>
+              <h3><Icon name={icono} />{titulo}</h3>
+              <p>{texto}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <BuenConteo />
+      <Pie />
+    </>
+  );
+}
+
+function PanelGeneral({ error, fincas, censos }) {
+  const { usuario } = useAuth();
   const [vacunacion, setVacunacion] = useState(null);
 
   useEffect(() => {
     obtenerResumenVacunacion().then(setVacunacion).catch(() => setVacunacion(null));
   }, []);
 
-  if (cargando) return <LoadingState>Cargando el resumen de tus fincas...</LoadingState>;
   if (error) return <AlertMessage>{error}</AlertMessage>;
 
   const bovinos = fincas.reduce((total, f) => total + f.registrados, 0);

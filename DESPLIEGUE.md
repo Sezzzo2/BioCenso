@@ -1,4 +1,4 @@
-# Despliegue de BioCenso (rama `main`)
+﻿# Despliegue de BioCenso (rama `main`)
 
 ```
 Firebase Hosting (página)  ──HTTPS──▶  Railway: backend (Node)  ──▶  Neon: PostgreSQL
@@ -32,7 +32,7 @@ sin backend, la app guarda todo en el navegador y cualquiera entra con cualquier
    ```
 
    Crea el esquema base si falta y aplica las migraciones de `backend/database/migraciones`.
-   Debe terminar con `Listo: 24 funciones y procedimientos.` Se puede ejecutar de nuevo sin riesgo;
+   Debe terminar con `Listo: 26 funciones y procedimientos.` Se puede ejecutar de nuevo sin riesgo;
    hazlo cada vez que se agregue una migración, **antes** de publicar el backend que la necesita.
 
 ## 2. Railway: backend y servicio de IA

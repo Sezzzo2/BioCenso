@@ -19,6 +19,8 @@ const {
   obtenerCenso,
   actualizarConteoManual,
   detectarCaptura,
+  guardarCaptura,
+  obtenerCaptura,
 } = require("../controllers/censoController");
 
 /**
@@ -136,6 +138,18 @@ router.post(
   verificarAccesoFinca(porCensoEnParam),
   uploadFotograma.single("fotograma"),
   detectarCaptura
+);
+
+// Captura guardada en la ficha del censo: imagen con recuadros + tabla de n.º de bovino y peso
+router.get("/:id/captura", verificarToken, idCensoParamValidator, validate, verificarAccesoFinca(porCensoEnParam), obtenerCaptura);
+router.put(
+  "/:id/captura",
+  verificarToken,
+  idCensoParamValidator,
+  validate,
+  verificarAccesoFinca(porCensoEnParam),
+  uploadFotograma.single("imagen"),
+  guardarCaptura
 );
 
 /**

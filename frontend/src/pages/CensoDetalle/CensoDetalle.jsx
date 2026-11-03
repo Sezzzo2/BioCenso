@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { obtenerCenso, registrarConteoManual, listarCensosDeFinca } from "../../services/censoService.js";
+import { obtenerCenso, obtenerCaptura, registrarConteoManual, listarCensosDeFinca } from "../../services/censoService.js";
+import TablaPesos from "../../components/censos/TablaPesos.jsx";
 import { obtenerResumen } from "../../services/dashboardService.js";
 import { fechaDeCenso, fechaHora, fraseRegistro, signo } from "../../utils/censos.js";
 import { formatFechaLarga } from "../../utils/format.js";
@@ -13,6 +14,53 @@ function fraseManual(diferencia) {
   if (diferencia === 0) return "El conteo de la IA coincide con el conteo manual.";
   const n = Math.abs(diferencia);
   return `La IA contó ${n} animal${n === 1 ? "" : "es"} ${diferencia > 0 ? "más" : "menos"} que el conteo manual.`;
+}
+
+// Imagen con los recuadros y la tabla de pesos que se guardaron al terminar el censo
+function CapturaGuardada({ idCenso }) {
+  const [estado, setEstado] = useState({ idCenso: null, captura: null, error: "" });
+  const cargando = String(estado.idCenso) !== String(idCenso);
+
+  useEffect(() => {
+    let vigente = true;
+    obtenerCaptura(idCenso)
+      .then((captura) => vigente && setEstado({ idCenso, captura, error: "" }))
+      .catch((err) => vigente && setEstado({ idCenso, captura: null, error: extraerError(err) }));
+    return () => { vigente = false; };
+  }, [idCenso]);
+
+  const { captura, error } = estado;
+  return (
+    <section className="panel panel-solido panel-pad bloque" aria-labelledby="t-captura">
+      <div className="bloque-cab">
+        <div>
+          <h2 id="t-captura">Captura del censo</h2>
+          <p className="sub">
+            {captura
+              ? `${captura.segundo != null ? `Fotograma del segundo ${Math.round(captura.segundo)} · ` : ""}${captura.pesos.length} bovinos marcados. Recuadros y pesos aproximados estimados por la IA.`
+              : "Fotograma con cada bovino numerado y su peso estimado."}
+          </p>
+        </div>
+        {captura && (
+          <a className="btn btn-oscuro btn-sm" href={captura.imagen_url} target="_blank" rel="noreferrer">Abrir imagen</a>
+        )}
+      </div>
+      {cargando ? (
+        <LoadingState>Cargando la captura...</LoadingState>
+      ) : error ? (
+        <AlertMessage>{error}</AlertMessage>
+      ) : captura ? (
+        <div className="captura-ficha">
+          <img src={captura.imagen_url} alt={`Fotograma con ${captura.pesos.length} bovinos numerados y su peso estimado`} />
+          <TablaPesos pesos={captura.pesos} />
+        </div>
+      ) : (
+        <p className="sub" style={{ marginTop: 12 }}>
+          Este censo no tiene captura guardada. Se guarda sola al terminar un censo nuevo desde Censo.
+        </p>
+      )}
+    </section>
+  );
 }
 
 export default function CensoDetalle() {
@@ -167,6 +215,8 @@ export default function CensoDetalle() {
           </form>
         </>
       )}
+
+      {completado && <CapturaGuardada idCenso={idCenso} />}
 
       <section className="panel panel-solido panel-pad bloque">
         <h2>Información del censo</h2>

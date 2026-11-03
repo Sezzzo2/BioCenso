@@ -123,6 +123,29 @@ export const detectarCaptura = async (idCenso, fotograma) => {
   return { animales: r.data?.animales ?? [], modelo: r.data?.modelo_gemini ?? null };
 };
 
+// Guarda en la ficha del censo la imagen con recuadros y la tabla [{ n, peso_kg }]
+export const guardarCaptura = async (idCenso, { imagen, pesos, segundo, modelo }) => {
+  const datos = new FormData();
+  datos.append("imagen", imagen, `captura-censo-${idCenso}.jpg`);
+  datos.append("pesos", JSON.stringify(pesos));
+  if (segundo != null) datos.append("segundo", String(segundo));
+  if (modelo) datos.append("modelo", modelo);
+  const r = await api.put(`/censos/${idCenso}/captura`, datos, { timeout: 120000 });
+  return r.data;
+};
+
+// null si el censo no tiene captura guardada
+export const obtenerCaptura = async (idCenso) => {
+  if (!USAR_BACKEND) return null;
+  try {
+    const r = await api.get(`/censos/${idCenso}/captura`);
+    return r.data;
+  } catch (err) {
+    if (err.response?.status === 404) return null;
+    throw err;
+  }
+};
+
 const CAMPO_CONTEO_MANUAL = "conteo_manual";
 
 export const registrarConteoManual = async (id, valor) => {

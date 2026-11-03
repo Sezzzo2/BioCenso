@@ -1,25 +1,30 @@
-# Despliegue de BioCenso (rama `prueba`)
+# Despliegue de BioCenso (rama `main`)
 
 ```
-Firebase Hosting (página)  ──HTTPS──▶  Render: biocenso-backend (Node)  ──▶  Neon: PostgreSQL
-biocenso-ucc-2026.web.app                       │
-                                                └──HTTPS + token──▶  Render: biocenso-ai (FastAPI + Gemini)
+Firebase Hosting (página)  ──HTTPS──▶  Railway: backend (Node)  ──▶  Neon: PostgreSQL
+biocenso-ucc-2026.web.app                    │
+                                             └──red privada + token──▶  Railway: ai-service (FastAPI + Gemini)
 ```
+
+| Pieza | Dónde | URL |
+|---|---|---|
+| Página | Firebase Hosting | https://biocenso-ucc-2026.web.app |
+| Backend | Railway, proyecto `jubilant-cat`, servicio `backend` | https://backend-production-87d9.up.railway.app |
+| Servicio de IA | Railway, servicio `ai-service` | Sin URL pública: solo lo alcanza el backend por la red privada |
+| Base de datos | Neon, proyecto `biocenso` | — |
+
+Railway despliega solo cada vez que se hace push a `main`. Render (sección final) queda como respaldo.
 
 La página se queda en Firebase. El frontend **solo** se publica compilado con `VITE_USE_BACKEND=true`:
 sin backend, la app guarda todo en el navegador y cualquiera entra con cualquier contraseña.
 `frontend/vite.config.js` detiene esa compilación.
 
-Todo es de plan gratis. En Render, los servicios gratis se duermen tras 15 minutos sin uso y
-tardan unos 50 s en despertar; la página los despierta al abrirse, pero conviene abrirla
-un minuto antes de una presentación.
-
 ## 1. Neon: base de datos
 
 1. Crea una cuenta en [neon.tech](https://neon.tech) (puedes entrar con GitHub) y un proyecto
-   `biocenso` en la región **AWS US West 2 (Oregon)**, la misma de Render.
-2. En **Connect**, copia la cadena de conexión (empieza por `postgresql://`). No la pegues en
-   el chat ni en archivos del repositorio.
+   `biocenso` en la región **AWS US West 2 (Oregon)**.
+2. En **Connect**, copia la cadena de conexión *pooled* (empieza por `postgresql://`). No la pegues
+   en el chat ni en archivos del repositorio.
 3. Crea el esquema desde la carpeta `backend` (PowerShell):
 
    ```bash
@@ -30,37 +35,56 @@ un minuto antes de una presentación.
    Debe terminar con `Listo: 24 funciones y procedimientos.` Se puede ejecutar de nuevo sin riesgo;
    hazlo cada vez que se agregue una migración, **antes** de publicar el backend que la necesita.
 
-## 2. Render: backend y servicio de IA
+## 2. Railway: backend y servicio de IA
 
-1. Crea una cuenta en [render.com](https://render.com) con GitHub.
-2. **New → Blueprint** y elige el repositorio `Sezzzo2/BioCenso`, rama `prueba`.
-   Render lee `render.yaml` y crea `biocenso-backend` y `biocenso-ai`.
-   - Si el repositorio no aparece (es de otra cuenta), pídele a su dueño que te agregue como
-     colaborador, o que él cree el Blueprint.
-3. Render pedirá las variables marcadas como secretas:
+En un proyecto de Railway, dos servicios conectados al repositorio `Sezzzo2/BioCenso`, rama `main`:
 
-   | Servicio | Variable | Valor |
-   |---|---|---|
-   | `biocenso-ai` | `GEMINI_API_KEY` | La clave de Google AI Studio |
-   | `biocenso-backend` | `DATABASE_URL` | La cadena de conexión de Neon |
-   | `biocenso-backend` | `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` | Credenciales de Cloudinary (fotos de los bovinos) |
+| Servicio | Root Directory | Start command | Healthcheck |
+|---|---|---|---|
+| `backend` | `/backend` | `npm start` | `/health` |
+| `ai-service` | `/ai-service` | `python -m app.servidor` | `/health` |
 
-   `JWT_SECRET` y `AI_SERVICE_TOKEN` los genera Render solo; el backend recibe el token del servicio de IA.
-4. Cuando termine, revisa la URL de `biocenso-ai`. Si no es `https://biocenso-ai.onrender.com`
-   (Render agrega un sufijo si el nombre está ocupado), cambia `AI_SERVICE_URL` en
-   `biocenso-backend → Environment`.
-5. Comprueba con la URL del backend:
-   - `https://<backend>.onrender.com/health` → `{"estado":"ok"}`
-   - `https://<backend>.onrender.com/health/db` → muestra la hora del servidor
-   - `https://<backend>.onrender.com/health/ai-service` → `"clave_configurada": true`
+Ambos usan el builder Railpack (lo mismo dice el `railway.json` de cada carpeta).
+`app/servidor.py` escucha en IPv4 e IPv6 a la vez: la red privada de Railway llega por IPv6 y el
+healthcheck por IPv4, así que `uvicorn --host ::` sola hacía fallar el despliegue.
+
+Variables (**Settings → Variables** de cada servicio):
+
+| Servicio | Variable | Valor |
+|---|---|---|
+| `ai-service` | `GEMINI_API_KEY` | La clave de Google AI Studio |
+| `ai-service` | `AI_SERVICE_TOKEN` | Un texto aleatorio largo |
+| `ai-service` | `PORT` | `8000` |
+| `backend` | `PORT` | `8080` (el dominio público apunta a ese puerto) |
+| `backend` | `NODE_ENV` | `production` |
+| `backend` | `DATABASE_URL` | La cadena de conexión de Neon |
+| `backend` | `DB_SSL` | `true` |
+| `backend` | `JWT_SECRET` | Un texto aleatorio de 32 caracteres o más |
+| `backend` | `JWT_EXPIRES_IN` | `2h` |
+| `backend` | `FRONTEND_ORIGIN` | `https://biocenso-ucc-2026.web.app,https://biocenso-ucc-2026.firebaseapp.com` |
+| `backend` | `TRUST_PROXY` | `true` |
+| `backend` | `AI_SERVICE_URL` | `http://${{ai-service.RAILWAY_PRIVATE_DOMAIN}}:8000` |
+| `backend` | `AI_SERVICE_TOKEN` | `${{ai-service.AI_SERVICE_TOKEN}}` |
+| `backend` | `AI_TIMEOUT_MS` | `600000` |
+| `backend` | `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` | Credenciales de Cloudinary (fotos de los bovinos) |
+
+En `backend → Settings → Networking`, genera el dominio público con el puerto `8080`.
+
+Comprueba con la URL del backend:
+- `/health` → `{"estado":"ok"}`
+- `/health/db` → muestra la hora del servidor
+- `/health/ai-service` → `"clave_configurada": true`
+- `/health/cloudinary` → las tres credenciales `definida`
+
+Railway no tiene plan gratis permanente: usa el crédito de prueba y después pide el plan Hobby.
 
 ## 3. Firebase: publicar la página
 
-En `frontend/.env.production` pon la URL del backend terminada en `/api`:
+En `frontend/.env.production` va la URL del backend terminada en `/api`:
 
 ```
 VITE_USE_BACKEND=true
-VITE_API_URL=https://<backend>.onrender.com/api
+VITE_API_URL=https://backend-production-87d9.up.railway.app/api
 ```
 
 Desde la raíz del repo:
@@ -81,24 +105,15 @@ en **Settings → Secrets and variables → Actions → Variables** y agrega su 
 1. En una ventana privada, iniciar sesión con un correo inventado debe fallar.
 2. Crea dos cuentas, registra una finca con la primera y entra con la segunda: no debe verla
    (abrir `/fincas/<id>` de la otra cuenta muestra "Finca no encontrada").
-3. Sube un censo MP4 o una foto de menos de 20 MB: aparece en el historial de esa finca.
+3. Sube un censo MP4 o una foto: aparece en el historial de esa finca.
 
-## Alternativa: Railway
+## Respaldo: Render
 
-Si prefieres Railway (no se duerme, pero requiere su plan de pago para uso continuo), cada carpeta
-trae su `railway.json`. Crea en un proyecto: PostgreSQL, `backend` (Root Directory `/backend`) y
-`ai-service` (Root Directory `/ai-service`), con las mismas variables de la tabla anterior más:
-
-| Servicio | Variable | Valor |
-|---|---|---|
-| `ai-service` | `PORT` | `8000` |
-| `ai-service` | `AI_SERVICE_TOKEN` | Un texto aleatorio largo |
-| `backend` | `DATABASE_URL` | `${{Postgres.DATABASE_URL}}` |
-| `backend` | `AI_SERVICE_URL` | `http://${{ai-service.RAILWAY_PRIVATE_DOMAIN}}:8000` |
-| `backend` | `AI_SERVICE_TOKEN` | `${{ai-service.AI_SERVICE_TOKEN}}` |
-| `backend` | `NODE_ENV`, `JWT_SECRET`, `FRONTEND_ORIGIN`, `TRUST_PROXY`, `AI_TIMEOUT_MS` | Como en `render.yaml` |
-
-El esquema se crea igual, con `scripts/crearEsquema.js` y la URL pública de la base.
+`render.yaml` crea `biocenso-backend` y `biocenso-ai` (**New → Blueprint**, repositorio
+`Sezzzo2/BioCenso`). Pide como secretos `GEMINI_API_KEY`, `DATABASE_URL` y las tres de Cloudinary;
+`JWT_SECRET` y `AI_SERVICE_TOKEN` los genera Render. Los servicios gratis se duermen tras 15 minutos
+sin uso y tardan unos 50 s en despertar. Para volver a Render, cambia `VITE_API_URL` a
+`https://biocenso-backend.onrender.com/api` y publica de nuevo la página.
 
 ## Variables opcionales del servicio de IA
 

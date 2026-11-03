@@ -5,15 +5,24 @@ const pool = require("../config/db");
 
 const AI_SERVICE_URL = process.env.AI_SERVICE_URL || "http://localhost:8000";
 
-// Motivo legible de un fallo del servicio de IA (sin datos internos ni claves)
+// Motivo legible de un fallo del servicio de IA para el usuario: sin proveedor, modelos ni
+// códigos internos (esos van al registro con detalleIA)
+const MOTIVOS_IA = {
+  saturado: "la IA está saturada en este momento; intenta de nuevo en unos minutos",
+  tiempo: "la IA tardó demasiado en responder; intenta de nuevo en unos minutos",
+  cuota: "se alcanzó el límite de análisis de hoy; intenta de nuevo más tarde",
+  rechazo: "la IA no pudo analizar esta imagen",
+};
 function motivoIA(error) {
-  if (error.code === "ECONNABORTED") return "la IA tardó demasiado en responder";
-  const detalle = error.response?.data?.detail;
-  if (typeof detalle === "string" && detalle.length < 200) return detalle;
-  if (error.response?.status === 401) return "el servicio de IA rechazó el token del backend";
+  if (error.code === "ECONNABORTED") return MOTIVOS_IA.tiempo;
   if (!error.response) return "no se pudo conectar con el servicio de IA";
-  return `el servicio de IA respondió ${error.response.status}`;
+  const motivo = error.response.data?.detail?.motivo;
+  if (MOTIVOS_IA[motivo]) return MOTIVOS_IA[motivo];
+  if (error.response.status === 401) return "el servicio de IA rechazó la conexión del servidor";
+  if (error.response.status === 504) return MOTIVOS_IA.tiempo;
+  return "la IA no devolvió un resultado válido";
 }
+const detalleIA = (error) => JSON.stringify(error.response?.data?.detail ?? error.code ?? error.message);
 // Incluye despertar el servicio de IA (plan gratis), subir un video grande a Gemini,
 // esperar a que lo procese y generar la respuesta
 const AI_TIMEOUT_MS = Number(process.env.AI_TIMEOUT_MS) || 600000;
@@ -79,9 +88,10 @@ async function crearCenso(req, res) {
       null,
     ]);
 
+    console.error("Censo", idCenso, "falló:", detalleIA(error));
     const err = new Error();
     err.status = 502;
-    err.publicMessage = "El servicio de inteligencia artificial no respondió correctamente";
+    err.publicMessage = `No se pudo analizar el censo: ${motivoIA(error)}.`;
     throw err;
   }
 }
@@ -142,10 +152,12 @@ async function detectarCaptura(req, res) {
     });
   } catch (error) {
     const motivo = motivoIA(error);
-    console.error("Captura del censo", req.params.id, "falló:", motivo);
+    console.error("Captura del censo", req.params.id, "falló:", detalleIA(error));
     const err = new Error();
     err.status = 502;
     err.publicMessage = `No se pudieron marcar las reses: ${motivo}.`;
+    // Saturación o demora: el navegador vuelve a intentarlo solo
+    err.status = error.response?.status === 503 || error.code === "ECONNABORTED" ? 503 : 502;
     throw err;
   }
 }

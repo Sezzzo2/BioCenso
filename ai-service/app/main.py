@@ -33,34 +33,67 @@ def url_modelo(modelo):
     return f"{BASE_API}/v1beta/models/{modelo}:generateContent?key={API_KEY}"
 
 
-# Tiempo por modelo y tope total para generar la respuesta (sin contar la subida del video)
-TIMEOUT_MODELO = float(os.getenv("GEMINI_TIMEOUT_MODELO", "60"))
-TIMEOUT_TOTAL = float(os.getenv("GEMINI_TIMEOUT_TOTAL", "150"))
+# Tiempo por intento y tope total para generar la respuesta (sin contar la subida del video)
+TIMEOUT_MODELO = float(os.getenv("GEMINI_TIMEOUT_MODELO", "75"))
+TIMEOUT_TOTAL = float(os.getenv("GEMINI_TIMEOUT_TOTAL", "300"))
+# El mejor modelo (el primero) se reintenta antes de pasar a los de respaldo cuando está
+# saturado o tarda; sin cuota (429) no tiene sentido insistir y se pasa al siguiente.
+INTENTOS_MEJOR = int(os.getenv("GEMINI_INTENTOS_MEJOR", "3"))
+ESPERAS = [3, 8, 15]
 
 
-def llamar_gemini(cuerpo):
-    limite = time.monotonic() + TIMEOUT_TOTAL
+def con_pensamiento_bajo(cuerpo):
+    """Misma petición pidiendo poco razonamiento: marcar recuadros no lo necesita y responde mucho antes."""
+    datos = json.loads(cuerpo)
+    datos.setdefault("generationConfig", {})["thinkingConfig"] = {"thinkingLevel": "low"}
+    return json.dumps(datos).encode("utf-8")
+
+
+def fallo_ia(motivo, fallos):
+    # El detalle técnico (modelos y códigos) va al registro; al backend solo llega el motivo
+    print("La IA no respondió:", "; ".join(fallos), flush=True)
+    raise HTTPException(status_code=503, detail={"motivo": motivo, "fallos": fallos})
+
+
+def llamar_gemini(cuerpo, presupuesto=TIMEOUT_TOTAL, rapido=False):
+    limite = time.monotonic() + presupuesto
+    modelos = list(dict.fromkeys(MODELOS))
+    intentos = [modelos[0]] * INTENTOS_MEJOR + modelos[1:]
     fallos = []
-    for modelo in dict.fromkeys(MODELOS):
+    for n, modelo in enumerate(intentos):
         restante = limite - time.monotonic()
         if restante < 5:
             break
+        datos = con_pensamiento_bajo(cuerpo) if rapido and modelo.startswith("gemini-3") else cuerpo
         req = urllib.request.Request(
-            url_modelo(modelo), data=cuerpo,
+            url_modelo(modelo), data=datos,
             headers={"Content-Type": "application/json"}, method="POST",
         )
         try:
             with urllib.request.urlopen(req, timeout=min(TIMEOUT_MODELO, restante)) as resp:
                 return json.loads(resp.read().decode("utf-8")), modelo
         except urllib.error.HTTPError as error:
+            if error.code == 400 and datos is not cuerpo:
+                # El modelo no acepta thinkingLevel: se repite tal cual
+                rapido = False
+                intentos.insert(n + 1, modelo)
+                continue
             if error.code not in REINTENTABLES:
-                raise HTTPException(status_code=502, detail=f"Gemini rechazó la solicitud ({error.code})")
+                fallos.append(f"{modelo}: {error.code}")
+                fallo_ia("rechazo", fallos)
             fallos.append(f"{modelo}: {error.code}")
+            if error.code == 429 and modelo == modelos[0]:
+                # Sin cuota: los demás intentos con el mejor modelo también fallarían
+                intentos[:] = [m for i, m in enumerate(intentos) if i <= n or m != modelo]
         except (TimeoutError, urllib.error.URLError) as error:
             fallos.append(f"{modelo}: {type(error).__name__}")
-        print("Gemini no respondió, probando el siguiente modelo:", fallos[-1], flush=True)
-        time.sleep(0.3)
-    raise HTTPException(status_code=503, detail="Ningún modelo de Gemini respondió: " + "; ".join(fallos))
+        print("La IA no respondió, se reintenta:", fallos[-1], flush=True)
+        siguiente = intentos[n + 1] if n + 1 < len(intentos) else None
+        espera = ESPERAS[min(n, len(ESPERAS) - 1)] if siguiente == modelo else 0.3
+        time.sleep(min(espera, max(0, limite - time.monotonic() - 5)))
+    cuota = fallos and all(f.endswith(": 429") for f in fallos)
+    tiempo = fallos and all(f.endswith("Error") for f in fallos)
+    fallo_ia("cuota" if cuota else "tiempo" if tiempo else "saturado", fallos)
 
 
 # Referencia de pesos para el ganado de la Orinoquía colombiana (Meta, Casanare, Vichada):
@@ -310,7 +343,8 @@ def detectar(fotograma: UploadFile = File(...), x_servicio_token: str = Header(d
         ]}],
         "generationConfig": {"responseMimeType": "application/json", "temperature": 0.1},
     }
-    raw_resp, modelo_usado = llamar_gemini(json.dumps(payload).encode("utf-8"))
+    # El backend espera 180 s: se deja margen para que su respuesta llegue antes
+    raw_resp, modelo_usado = llamar_gemini(json.dumps(payload).encode("utf-8"), presupuesto=165, rapido=True)
     datos = leer_respuesta(raw_resp)
     lista = datos.get("animales") if isinstance(datos, dict) else datos
     return {"animales": leer_animales(lista), "modelo_gemini": modelo_usado}

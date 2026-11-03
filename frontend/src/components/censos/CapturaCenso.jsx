@@ -5,6 +5,7 @@ import { extraerError } from "../../utils/errores.js";
 const VERDE = "#86e05b";
 const TINTA = "#10230c";
 const LADO_MAXIMO = 1600; // px del fotograma que se envía y se dibuja
+const REINTENTOS_AUTOMATICOS = 2;
 
 // Zona del fotograma que contiene todas las reses, con margen, para acercar la imagen
 function zonaDeInteres(animales) {
@@ -165,6 +166,7 @@ export default function CapturaCenso({ archivo, captura, idCenso }) {
   const [modelo, setModelo] = useState(null);
   const [intento, setIntento] = useState(0);
   const [hayFotograma, setHayFotograma] = useState(false);
+  const [esperando, setEsperando] = useState(0); // reintento automático en curso
 
   useEffect(() => {
     if (!archivo || !captura) return undefined;
@@ -189,8 +191,23 @@ export default function CapturaCenso({ archivo, captura, idCenso }) {
         let marcados = archivo.type.startsWith("image/") ? captura.animales ?? [] : [];
         if (!marcados.length && idCenso) {
           setEstado("marcando");
-          const respuesta = await detectarCaptura(idCenso, await comoBlob(fotograma));
+          const imagen = await comoBlob(fotograma);
+          let respuesta;
+          // Si la IA está saturada se vuelve a pedir sola antes de mostrar el error
+          for (let vuelta = 0; ; vuelta++) {
+            try {
+              respuesta = await detectarCaptura(idCenso, imagen);
+              break;
+            } catch (err) {
+              const ocupada = err?.response?.status === 503 || err?.code === "ECONNABORTED";
+              if (!ocupada || vuelta >= REINTENTOS_AUTOMATICOS || cancelado) throw err;
+              setEsperando(vuelta + 1);
+              await new Promise((ok) => setTimeout(ok, 15000));
+              if (cancelado) return;
+            }
+          }
           if (cancelado) return;
+          setEsperando(0);
           marcados = respuesta.animales;
           setModelo(respuesta.modelo);
         }
@@ -203,6 +220,7 @@ export default function CapturaCenso({ archivo, captura, idCenso }) {
         setEstado("listo");
       } catch (err) {
         if (!cancelado) {
+          setEsperando(0);
           setMotivo(err?.code === "ECONNABORTED" ? "La IA tardó demasiado en marcar las reses." : extraerError(err));
           setEstado("error");
         }
@@ -232,7 +250,11 @@ export default function CapturaCenso({ archivo, captura, idCenso }) {
           hidden={estado !== "listo"} />
         {(estado === "cargando" || estado === "marcando") && (
           <p className="cargando" style={{ padding: "18px 20px" }}><i aria-hidden="true" />
-            {estado === "cargando" ? "Preparando la captura…" : "Marcando las reses en el fotograma…"}
+            {estado === "cargando"
+              ? "Preparando la captura…"
+              : esperando
+                ? `La IA está ocupada; reintentando la captura (${esperando} de ${REINTENTOS_AUTOMATICOS})…`
+                : "Marcando las reses en el fotograma…"}
           </p>
         )}
         {estado === "sinReses" && (

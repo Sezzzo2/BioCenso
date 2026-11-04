@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import Icon from "../../components/ui/Icon.jsx";
 import { ButtonLink } from "../../components/ui/SharedUI.jsx";
 import { BuenConteo, ComoFunciona, Comparacion, Pie } from "../../components/inicio/Secciones.jsx";
+import { PreguntasFrecuentes, QueIncluye, RecorridoDelVideo } from "../../components/inicio/Portada.jsx";
 import { useAuth } from "../../context/AuthContext.jsx";
 import DetectionPreview from "../Inicio/DetectionPreview.jsx";
 
@@ -40,8 +41,11 @@ export default function Landing() {
       </div>
 
       <ComoFunciona />
+      <RecorridoDelVideo />
+      <QueIncluye />
       <BuenConteo />
       <Comparacion />
+      <PreguntasFrecuentes />
 
       {!autenticado && (
         <section className="panel panel-solido llamado" aria-labelledby="t-llamado">

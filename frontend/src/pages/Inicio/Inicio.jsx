@@ -9,6 +9,7 @@ import { obtenerResumenVacunacion } from "../../services/dashboardService.js";
 import { esCompletado, fechaDeCenso, signo } from "../../utils/censos.js";
 import { formatFecha, formatFechaLarga } from "../../utils/format.js";
 import DetectionPreview from "./DetectionPreview.jsx";
+import { abrirTutorial } from "../../components/tutorial/tutorial.js";
 import { BuenConteo, ComoFunciona, Pie } from "../../components/inicio/Secciones.jsx";
 
 // Inicio dentro de la app (con sesión). Quien todavía no tiene censos ve una guía de
@@ -92,7 +93,10 @@ function Bienvenida({ fincas }) {
           aria-label={`${hechos} de 3 pasos completados`}>
           <span style={{ transform: `scaleX(${hechos / 3})` }} />
         </div>
-        <p className="progreso-texto">{hechos} de 3 pasos completados</p>
+        <p className="progreso-texto">
+          {hechos} de 3 pasos completados ·{" "}
+          <button type="button" className="btn-texto" onClick={abrirTutorial}>Ver el tutorial</button>
+        </p>
       </header>
 
       <ol className="primeros-pasos">
@@ -237,6 +241,13 @@ function PanelGeneral({ error, fincas, censos }) {
             <Acceso to="/fincas" icono="mapPin" titulo="Gestionar fincas" texto="Consultar propiedades y bovinos" />
             <Acceso to="/fincas/nueva" icono="plus" titulo="Registrar finca" texto="Agregar una propiedad a tu cuenta" />
             <Acceso to="/censos" icono="arrowUp" titulo="Crear censo" texto="Selecciona una finca y carga su video" />
+            <li>
+              <button type="button" onClick={abrirTutorial}>
+                <span className="ico"><Icon name="escaner" /></span>
+                <span><strong>Ver tutorial</strong><small>Repasa cómo usar BioCenso paso a paso</small></span>
+                <Icon name="chevronDown" className="flecha" />
+              </button>
+            </li>
             {fincas.slice(0, 3).map((f) => (
               <Acceso key={f.id_finca} to={`/fincas/${f.id_finca}/dashboard`} icono="barras" titulo={`Panel de ${f.nombre}`}
                 texto={[f.municipio, f.departamento].filter(Boolean).join(", ")} />

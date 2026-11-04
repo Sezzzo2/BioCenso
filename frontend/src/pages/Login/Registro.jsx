@@ -4,6 +4,7 @@ import { useAuth } from "../../context/AuthContext.jsx";
 import { extraerError } from "../../utils/errores.js";
 import Icon from "../../components/ui/Icon.jsx";
 import { AlertMessage, FormField } from "../../components/ui/SharedUI.jsx";
+import { marcarTutorialPendiente } from "../../components/tutorial/tutorial.js";
 
 const REGLA_CONTRASENA = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/;
 const CAMPOS_REQUERIDOS = ["nombre", "apellido", "correo", "contrasena", "confirmar"];
@@ -16,7 +17,7 @@ export default function Registro() {
   const [erroresCampo, setErroresCampo] = useState({});
   const [enviando, setEnviando] = useState(false);
 
-  if (autenticado) return <Navigate to="/fincas" replace />;
+  if (autenticado) return <Navigate to="/inicio" replace />;
 
   const cambiar = (e) => {
     const { name, value } = e.target;
@@ -57,10 +58,9 @@ export default function Registro() {
         correo: form.correo.trim(),
         contrasena: form.contrasena,
       });
-      navigate("/fincas", {
-        replace: true,
-        state: { mensaje: "Tu cuenta fue creada. Ya puedes registrar tus fincas." },
-      });
+      // La primera visita a la app abre el tutorial
+      marcarTutorialPendiente();
+      navigate("/inicio", { replace: true });
     } catch (err) {
       setError(extraerError(err));
     } finally {

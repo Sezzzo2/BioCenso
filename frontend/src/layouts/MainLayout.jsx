@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import Icon from "../components/ui/Icon.jsx";
+import Tutorial from "../components/tutorial/Tutorial.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
 
 const TITULOS = [
@@ -83,6 +84,7 @@ export default function MainLayout() {
           </div>
         </main>
       </div>
+      <Tutorial />
     </>
   );
 }

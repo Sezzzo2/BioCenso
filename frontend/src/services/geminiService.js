@@ -114,22 +114,18 @@ INSTRUCCIONES CRÍTICAS DE CONTEO EN VUELO DE DRON:
    - SUMA los animales detectados a través de todos los fotogramas de la secuencia para obtener el conteo total del vuelo ("count").
    - No subestimes el conteo: si en los distintos tramos del video aparecen vacas en la pradera, "count" debe ser la suma total de todas ellas a lo largo del recorrido.
 
-INSTRUCCIONES CRÍTICAS DE PESO (RANGO MENOR):
-4. Estima el rango de peso promedio por res en kilogramos ("peso_promedio_minimo_kg" y "peso_promedio_maximo_kg") de acuerdo con el tamaño observado del ganado (típicamente entre 320 kg y 450 kg para ganado bovino adulto).
-5. Para el peso final reportado, adáptate SIEMPRE al RANGO MENOR (valor mínimo del rango de peso):
-   - "peso_estimado_promedio" debe ser igual a "peso_promedio_minimo_kg".
-   - "peso_total_estimado" debe ser igual a ("count" * "peso_estimado_promedio").
+PESO:
+4. Estima el peso vivo de cada res por separado según lo que se ve de ella (largo y ancho del cuerpo, tamaño frente a las demás, condición corporal) y da el valor más probable, sin acercarlo a un valor fijo. En "peso_estimado_promedio" pon el promedio de esos pesos, y en "peso_promedio_minimo_kg" y "peso_promedio_maximo_kg" el menor y el mayor de ellos.
 
-Responde ÚNICAMENTE con un objeto JSON válido con esta estructura exacta:
+Responde ÚNICAMENTE con un objeto JSON válido con esta forma (los valores entre <> son lo que debes estimar):
 {
-  "count": 7,
-  "peso_promedio_minimo_kg": 350,
-  "peso_promedio_maximo_kg": 410,
-  "peso_estimado_promedio": 350,
-  "peso_total_estimado": 2450
+  "count": <número de reses>,
+  "peso_promedio_minimo_kg": <peso de la res más liviana>,
+  "peso_promedio_maximo_kg": <peso de la res más pesada>,
+  "peso_estimado_promedio": <promedio de los pesos>
 }`;
 
-async function consultarModeloConPartes(partesMedia, signal, duracion = 20) {
+async function consultarModeloConPartes(partesMedia, signal) {
   for (let i = 0; i < MODELOS_DISPONIBLES.length; i++) {
     const modelo = MODELOS_DISPONIBLES[i];
     try {
@@ -178,15 +174,8 @@ async function consultarModeloConPartes(partesMedia, signal, duracion = 20) {
     }
   }
 
-  // Respaldo determinístico si todos los modelos gratuitos agotaron cuota diaria
-  const estimadoReses = Math.max(1, Math.round(duracion / 3.3));
-  return {
-    count: estimadoReses,
-    peso_promedio_minimo_kg: 350,
-    peso_promedio_maximo_kg: 410,
-    peso_estimado_promedio: 350,
-    peso_total_estimado: estimadoReses * 350,
-  };
+  // Sin respuesta de la IA no se inventan conteos ni pesos
+  throw new Error("La IA no respondió. Intenta de nuevo en unos minutos.");
 }
 
 export async function analizarArchivoConGemini(archivo, { onProgress, signal } = {}) {
@@ -199,18 +188,14 @@ export async function analizarArchivoConGemini(archivo, { onProgress, signal } =
   const esVideo = archivo.type?.startsWith("video/");
 
   if (esVideo) {
-    const { partes, duracion } = await extraerFotogramasDeVideo(archivo, onProgress);
+    const { partes } = await extraerFotogramasDeVideo(archivo, onProgress);
     onProgress?.(100);
-    resultadoCrudo = await consultarModeloConPartes(partes, signal, duracion);
+    resultadoCrudo = await consultarModeloConPartes(partes, signal);
   } else {
     const base64 = await archivoABase64(archivo, onProgress);
     onProgress?.(100);
     const mimeType = archivo.type || "image/jpeg";
-    resultadoCrudo = await consultarModeloConPartes(
-      [{ inlineData: { mimeType, data: base64 } }],
-      signal,
-      10
-    );
+    resultadoCrudo = await consultarModeloConPartes([{ inlineData: { mimeType, data: base64 } }], signal);
   }
 
   const tiempoSegundos = Number(((performance.now() - inicio) / 1000).toFixed(2));
@@ -228,31 +213,21 @@ export async function analizarArchivoConGemini(archivo, { onProgress, signal } =
     )
   );
 
-  const pesoPromMin = Math.max(
-    0,
-    Number(
-      resultadoCrudo.peso_promedio_minimo_kg ??
-        resultadoCrudo.peso_estimado_promedio ??
-        (conteo > 0 ? 350 : 0)
-    ) || 0
-  );
-  const pesoPromMax = Math.max(
-    pesoPromMin,
-    Number(resultadoCrudo.peso_promedio_maximo_kg ?? pesoPromMin) || pesoPromMin
-  );
-
-  const pesoPromedioRedondeado = Math.round(pesoPromMin * 10) / 10;
-  const pesoTotalMin = Math.round(conteo * pesoPromedioRedondeado * 10) / 10;
-  const pesoTotalMax = Math.round(conteo * pesoPromMax * 10) / 10;
+  // El peso reportado es el promedio estimado por la IA, no el mínimo del rango
+  const pesoProm = Math.max(0, Number(resultadoCrudo.peso_estimado_promedio) || 0);
+  const pesoMin = Math.max(0, Number(resultadoCrudo.peso_promedio_minimo_kg ?? pesoProm) || pesoProm);
+  const pesoMax = Math.max(pesoMin, Number(resultadoCrudo.peso_promedio_maximo_kg ?? pesoProm) || pesoProm);
+  const redondear = (v) => Math.round(v * 10) / 10;
+  const pesoTotal = redondear(conteo * pesoProm);
 
   return {
     count: conteo,
-    peso_estimado_promedio: pesoPromedioRedondeado,
-    peso_promedio_minimo_kg: pesoPromedioRedondeado,
-    peso_promedio_maximo_kg: Math.round(pesoPromMax * 10) / 10,
-    peso_total_estimado: pesoTotalMin,
-    peso_total_minimo_kg: pesoTotalMin,
-    peso_total_maximo_kg: pesoTotalMax,
+    peso_estimado_promedio: redondear(pesoProm),
+    peso_promedio_minimo_kg: redondear(pesoMin),
+    peso_promedio_maximo_kg: redondear(pesoMax),
+    peso_total_estimado: pesoTotal,
+    peso_total_minimo_kg: redondear(conteo * pesoMin),
+    peso_total_maximo_kg: redondear(conteo * pesoMax),
     processing_time: tiempoSegundos,
     model: "YOLOv26s",
   };

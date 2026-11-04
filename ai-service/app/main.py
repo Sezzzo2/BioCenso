@@ -42,10 +42,11 @@ INTENTOS_MEJOR = int(os.getenv("GEMINI_INTENTOS_MEJOR", "3"))
 ESPERAS = [3, 8, 15]
 
 
-def con_pensamiento_bajo(cuerpo):
-    """Misma petición pidiendo poco razonamiento: marcar recuadros no lo necesita y responde mucho antes."""
+def con_pensamiento_medio(cuerpo):
+    """Misma petición con razonamiento medio: alcanza para estimar bien el peso de cada res
+    en una sola imagen y responde antes que con el razonamiento completo."""
     datos = json.loads(cuerpo)
-    datos.setdefault("generationConfig", {})["thinkingConfig"] = {"thinkingLevel": "low"}
+    datos.setdefault("generationConfig", {})["thinkingConfig"] = {"thinkingLevel": "medium"}
     return json.dumps(datos).encode("utf-8")
 
 
@@ -64,7 +65,7 @@ def llamar_gemini(cuerpo, presupuesto=TIMEOUT_TOTAL, rapido=False):
         restante = limite - time.monotonic()
         if restante < 5:
             break
-        datos = con_pensamiento_bajo(cuerpo) if rapido and modelo.startswith("gemini-3") else cuerpo
+        datos = con_pensamiento_medio(cuerpo) if rapido and modelo.startswith("gemini-3") else cuerpo
         req = urllib.request.Request(
             url_modelo(modelo), data=datos,
             headers={"Content-Type": "application/json"}, method="POST",
@@ -96,39 +97,32 @@ def llamar_gemini(cuerpo, presupuesto=TIMEOUT_TOTAL, rapido=False):
     fallo_ia("cuota" if cuota else "tiempo" if tiempo else "saturado", fallos)
 
 
-# Referencia de pesos para el ganado de la Orinoquía colombiana (Meta, Casanare, Vichada):
-# Brahman, cebú comercial y sus cruces. Sin ella el modelo tendía a pesos bajos.
-REFERENCIA_PESOS = """Referencia de peso vivo para ganado de la Orinoquía colombiana (Brahman, cebú comercial y sus cruces):
-- Vaca adulta: 420 a 550 kg
-- Toro adulto: 650 a 900 kg
-- Novillo de levante o ceba: 300 a 480 kg
-- Novilla: 280 a 400 kg
-- Ternero o ternera: 120 a 250 kg
-Clasifica cada res por su tamaño frente a las demás (el dron vuela a unos 30 a 50 m) y por su forma, y asígnale un peso dentro del rango de su categoría. Un animal adulto de tamaño normal debe quedar cerca de la mitad de su rango, no en el extremo bajo."""
+# Cómo estimar el peso: a partir de lo que se ve de cada animal, sin empujarlo hacia un
+# valor elegido de antemano. Los rangos típicos solo orientan y se pueden superar.
+REFERENCIA_PESOS = """Cómo estimar el peso de cada res (peso vivo en kilogramos):
+- Estima CADA animal por separado a partir de lo que se ve de él: largo y ancho del cuerpo, profundidad del tórax, tamaño frente a las demás reses y objetos de la escena, y su condición corporal (costillas y cadera marcadas = flaco; lomo ancho y redondeado = gordo).
+- Da el valor más probable para ese animal, sin redondear a cifras parecidas para todos ni acercarlo a un valor fijo. Si hay animales de distinto tamaño, sus pesos deben ser distintos.
+- La categoría (vaca, toro, novillo, novilla o ternero) se decide por su tamaño, su forma y su comportamiento, no al revés.
+- Como orientación, en la Orinoquía colombiana (Brahman, cebú y sus cruces) suelen pesar: vaca adulta 380-600 kg, toro 550-1000 kg, novillo 250-500 kg, novilla 250-420 kg, ternero 60-250 kg. Si lo que ves indica un peso fuera de ese rango, usa lo que ves.
+- Si un animal se ve mal (lejos, tapado o borroso), estímalo igual con lo que se alcance a ver de su tamaño."""
 
 PROMPT_CENSO = """Actúa como el motor de visión por computadora de BioCenso especializado en detección y conteo de ganado bovino (vacas, toros, novillos, terneros).
 1. Examina con máxima atención todo el video o imagen de principio a fin y cuenta TODAS las vacas/reses que aparecen en la escena o recorrido (de pie, echadas, caminando, agrupadas, parcialmente visibles o en sombra). NO subestimes el conteo: "count" debe ser el número total real de reses identificadas.
-2. Estima el rango del peso promedio por res en kilogramos ("peso_promedio_minimo_kg" y "peso_promedio_maximo_kg") y el peso promedio más probable ("peso_estimado_promedio"), según la referencia de abajo.
-3. Calcula "peso_total_estimado" = "count" * "peso_estimado_promedio".
-4. Elige el fotograma donde se vean más reses con claridad. En "captura.segundo" indica su segundo exacto dentro del video (usa 0 si es una imagen). Para CADA res visible en ese fotograma agrega un elemento a "captura.animales" con su recuadro "box_2d" = [ymin, xmin, ymax, xmax] en coordenadas normalizadas de 0 a 1000 sobre ese fotograma, y su peso individual estimado en kilogramos en "peso_kg". No marques otros animales (perros, caballos, cabras).
-5. En "reses" agrega UN elemento por CADA res contada en todo el video (exactamente "count" elementos, sin repetir la misma res): su "categoria" (vaca, toro, novillo, novilla o ternero), su peso individual estimado en "peso_kg" y el segundo del video en que mejor se ve en "segundo" (0 si es una imagen). El promedio de estos pesos debe coincidir con "peso_estimado_promedio".
+2. En "reses" agrega UN elemento por CADA res contada en todo el video (exactamente "count" elementos, sin repetir la misma res): su "categoria" (vaca, toro, novillo, novilla o ternero), su peso individual estimado en "peso_kg" según la guía de abajo, y el segundo del video en que mejor se ve en "segundo" (0 si es una imagen).
+3. Elige el fotograma donde se vean más reses con claridad. En "captura.segundo" indica su segundo exacto dentro del video (usa 0 si es una imagen). Para CADA res visible en ese fotograma agrega un elemento a "captura.animales" con su recuadro "box_2d" = [ymin, xmin, ymax, xmax] en coordenadas normalizadas de 0 a 1000 sobre ese fotograma, y su peso individual estimado en kilogramos en "peso_kg". No marques otros animales (perros, caballos, cabras).
 
-Responde ÚNICAMENTE con JSON válido:
+Responde ÚNICAMENTE con JSON válido con esta forma (los valores entre <> son lo que debes estimar):
 {
-  "count": 7,
-  "peso_promedio_minimo_kg": 430,
-  "peso_promedio_maximo_kg": 510,
-  "peso_estimado_promedio": 470,
-  "peso_total_estimado": 3290,
-  "captura": {
-    "segundo": 12.5,
-    "animales": [
-      {"box_2d": [412, 230, 470, 290], "peso_kg": 470}
-    ]
-  },
+  "count": <número de reses>,
   "reses": [
-    {"categoria": "vaca", "peso_kg": 470, "segundo": 12.5}
-  ]
+    {"categoria": "<vaca|toro|novillo|novilla|ternero>", "peso_kg": <peso estimado de esa res>, "segundo": <segundo del video>}
+  ],
+  "captura": {
+    "segundo": <segundo del fotograma>,
+    "animales": [
+      {"box_2d": [<ymin>, <xmin>, <ymax>, <xmax>], "peso_kg": <peso estimado de esa res>}
+    ]
+  }
 }
 
 """ + REFERENCIA_PESOS
@@ -272,8 +266,8 @@ Para cada res da su recuadro "box_2d" = [ymin, xmin, ymax, xmax] ajustado al cue
 
 """ + REFERENCIA_PESOS + """
 
-Responde ÚNICAMENTE con JSON válido:
-{"animales": [{"box_2d": [412, 230, 470, 290], "categoria": "vaca", "peso_kg": 470}]}
+Responde ÚNICAMENTE con JSON válido con esta forma (los valores entre <> son lo que debes estimar):
+{"animales": [{"box_2d": [<ymin>, <xmin>, <ymax>, <xmax>], "categoria": "<vaca|toro|novillo|novilla|ternero>", "peso_kg": <peso estimado de esa res>}]}
 Si no hay reses, responde {"animales": []}."""
 
 
@@ -328,16 +322,25 @@ def predict(imagen: UploadFile = File(...), x_servicio_token: str = Header(defau
     datos = leer_respuesta(raw_resp)
 
     conteo = max(0, int(datos.get("count", datos.get("conteo_maximo", 0)) or 0))
-    # El promedio es el valor más probable que estima el modelo, acotado a su propio rango.
-    # Antes se tomaba el mínimo del rango y los pesos quedaban sistemáticamente bajos.
-    peso_min = round(float(datos.get("peso_promedio_minimo_kg", datos.get("peso_estimado_promedio", 0)) or 0), 2)
-    peso_max = round(max(peso_min, float(datos.get("peso_promedio_maximo_kg", peso_min) or peso_min)), 2)
-    try:
-        peso_prom = float(datos.get("peso_estimado_promedio"))
-    except (TypeError, ValueError):
-        peso_prom = (peso_min + peso_max) / 2
-    peso_prom = round(min(max(peso_prom, peso_min), peso_max), 2)
-    peso_total = round(conteo * peso_prom, 2)
+    reses = leer_reses(datos.get("reses"), conteo)
+    captura = leer_captura(datos)
+
+    # El promedio y el total salen de los pesos de cada animal, sin acotarlos a un rango
+    # elegido de antemano. Si faltan pesos individuales se usan los de la captura y, como
+    # último recurso, el promedio que haya dado el modelo.
+    pesos = [r["peso_kg"] for r in reses] or [a["peso_kg"] for a in (captura or {}).get("animales", []) if a["peso_kg"]]
+    if pesos:
+        peso_prom = sum(pesos) / len(pesos)
+    else:
+        try:
+            peso_prom = float(datos.get("peso_estimado_promedio") or 0)
+        except (TypeError, ValueError):
+            peso_prom = 0.0
+    peso_prom = round(peso_prom, 2)
+    # Los animales sin peso propio (si el modelo listó menos que el conteo) aportan el promedio
+    peso_total = round(sum(pesos[:conteo]) + max(0, conteo - len(pesos)) * peso_prom, 2) if conteo else 0.0
+    peso_min = round(min(pesos), 2) if pesos else peso_prom
+    peso_max = round(max(pesos), 2) if pesos else peso_prom
 
     tiempo_procesamiento = round(time.perf_counter() - inicio, 2)
 
@@ -348,8 +351,8 @@ def predict(imagen: UploadFile = File(...), x_servicio_token: str = Header(defau
         "peso_promedio_maximo_kg": peso_max,
         "peso_total_estimado": peso_total,
         "observaciones": datos.get("observaciones", ""),
-        "captura": leer_captura(datos),
-        "reses": leer_reses(datos.get("reses"), conteo),
+        "captura": captura,
+        "reses": reses,
         "detections": [],
         "processing_time": tiempo_procesamiento,
         "model": "YOLOv26s",

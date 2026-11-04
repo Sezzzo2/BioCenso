@@ -81,8 +81,9 @@ async function crearCenso(req, res) {
       captura: captura ?? null,
       // Peso y categoría de cada res contada en el video (no solo las del fotograma)
       reses: Array.isArray(reses) ? reses : [],
-      modelo_gemini: modelo_gemini ?? null,
     });
+    // El modelo de IA usado solo queda en el registro del servidor, no se muestra al usuario
+    console.log("Censo", idCenso, "analizado con", modelo_gemini ?? "modelo desconocido");
   } catch (error) {
     // Si la IA falla o no responde, el censo NO debe quedar "Procesando" para siempre
     await pool.query("SELECT * FROM fn_actualizar_estado_censo($1, $2, $3)", [
@@ -151,8 +152,8 @@ async function detectarCaptura(req, res) {
     });
     res.json({
       animales: Array.isArray(respuesta.data?.animales) ? respuesta.data.animales : [],
-      modelo_gemini: respuesta.data?.modelo_gemini ?? null,
     });
+    console.log("Captura del censo", req.params.id, "marcada con", respuesta.data?.modelo_gemini ?? "modelo desconocido");
   } catch (error) {
     const motivo = motivoIA(error);
     console.error("Captura del censo", req.params.id, "falló:", detalleIA(error));
@@ -222,7 +223,6 @@ async function guardarCaptura(req, res) {
     return res.status(422).json({ errores: [{ campo: "pesos", mensaje: "La tabla de pesos no es válida" }] });
   }
   const segundo = req.body.segundo == null || req.body.segundo === "" ? NaN : Number(req.body.segundo);
-  const modelo = String(req.body.modelo ?? "").slice(0, 80) || null;
 
   let subida = null;
   try {
@@ -239,18 +239,21 @@ async function guardarCaptura(req, res) {
     id,
     subida?.secure_url ?? null,
     Number.isFinite(segundo) ? segundo : null,
-    modelo,
+    null,
     JSON.stringify(pesos),
   ]);
-  res.status(201).json(result.rows[0]);
+  res.status(201).json(sinModelo(result.rows[0]));
 }
+
+// Las capturas antiguas guardaron el modelo de IA; no se envía al navegador
+const sinModelo = ({ modelo, ...captura }) => captura; // eslint-disable-line no-unused-vars
 
 async function obtenerCaptura(req, res) {
   const result = await pool.query("SELECT * FROM fn_obtener_captura_censo($1)", [req.params.id]);
   if (result.rows.length === 0) {
     return res.status(404).json({ error: "Este censo no tiene captura guardada" });
   }
-  res.json(result.rows[0]);
+  res.json(sinModelo(result.rows[0]));
 }
 
 module.exports = {

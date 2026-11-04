@@ -1,5 +1,4 @@
 import api from "./api.js";
-import { analizarArchivoConGemini } from "./geminiService.js";
 import { guardarDB, leerDB, siguienteId } from "./localStore.js";
 
 const USAR_BACKEND = import.meta.env.VITE_USE_BACKEND === "true";
@@ -70,6 +69,8 @@ export const crearCenso = async ({ idFinca, nota, fechaVuelo, archivo, onProgres
     return r.data;
   }
 
+  // Solo en modo local: con backend este módulo ni siquiera entra en la compilación
+  const { analizarArchivoConGemini } = await import("./geminiService.js");
   const analisis = await analizarArchivoConGemini(archivo, { onProgress, signal });
 
   const db = leerDB();
@@ -120,16 +121,15 @@ export const detectarCaptura = async (idCenso, fotograma) => {
   const datos = new FormData();
   datos.append("fotograma", fotograma, "fotograma.jpg");
   const r = await api.post(`/censos/${idCenso}/captura`, datos, { timeout: 180000 });
-  return { animales: r.data?.animales ?? [], modelo: r.data?.modelo_gemini ?? null };
+  return { animales: r.data?.animales ?? [] };
 };
 
 // Guarda en la ficha del censo la tabla de bovinos contados y, si la hay, la imagen con recuadros
-export const guardarCaptura = async (idCenso, { imagen, pesos, segundo, modelo }) => {
+export const guardarCaptura = async (idCenso, { imagen, pesos, segundo }) => {
   const datos = new FormData();
   if (imagen) datos.append("imagen", imagen, `captura-censo-${idCenso}.jpg`);
   datos.append("pesos", JSON.stringify(pesos));
   if (segundo != null) datos.append("segundo", String(segundo));
-  if (modelo) datos.append("modelo", modelo);
   const r = await api.put(`/censos/${idCenso}/captura`, datos, { timeout: 120000 });
   return r.data;
 };

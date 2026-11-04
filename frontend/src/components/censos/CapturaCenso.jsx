@@ -176,8 +176,6 @@ export default function CapturaCenso({ archivo, captura, idCenso, idFinca, conte
   const [motivo, setMotivo] = useState("");
   const [animales, setAnimales] = useState([]);
   const [tabla, setTabla] = useState([]);
-  const [modelo, setModelo] = useState(null);
-  const respuestaModelo = useRef(null);
   const [intento, setIntento] = useState(0);
   const [hayFotograma, setHayFotograma] = useState(false);
   const [esperando, setEsperando] = useState(0); // reintento automático en curso
@@ -189,7 +187,7 @@ export default function CapturaCenso({ archivo, captura, idCenso, idFinca, conte
   }), [reses, conteo, pesoPromedio, captura]);
 
   // Guarda la tabla en la ficha del censo y, si se pudo marcar, la imagen con los recuadros
-  const guardarEnFicha = useCallback(async (filas, modeloUsado, conImagen) => {
+  const guardarEnFicha = useCallback(async (filas, conImagen) => {
     if (!idCenso || !filas.length) return;
     setGuardado({ estado: "guardando", conImagen });
     try {
@@ -197,7 +195,6 @@ export default function CapturaCenso({ archivo, captura, idCenso, idFinca, conte
         imagen: conImagen ? await comoBlob(lienzo.current) : null,
         pesos: filas,
         segundo: conImagen ? captura?.segundo ?? null : null,
-        modelo: modeloUsado,
       });
       setGuardado({ estado: "ok", conImagen });
     } catch {
@@ -214,7 +211,7 @@ export default function CapturaCenso({ archivo, captura, idCenso, idFinca, conte
       setTabla(filas);
       setMotivo(texto);
       setEstado(nuevoEstado);
-      guardarEnFicha(filas, null, false);
+      guardarEnFicha(filas, false);
     };
     (async () => {
       let fotograma = fotogramaRef.current;
@@ -251,8 +248,6 @@ export default function CapturaCenso({ archivo, captura, idCenso, idFinca, conte
           if (cancelado) return;
           setEsperando(0);
           marcados = respuesta.animales;
-          respuestaModelo.current = respuesta.modelo;
-          setModelo(respuesta.modelo);
         }
         if (!marcados.length) {
           sinImagen("sinReses");
@@ -264,7 +259,7 @@ export default function CapturaCenso({ archivo, captura, idCenso, idFinca, conte
         setAnimales(ordenados);
         setTabla(filas);
         setEstado("listo");
-        guardarEnFicha(filas, respuestaModelo.current, true);
+        guardarEnFicha(filas, true);
       } catch (err) {
         if (!cancelado) {
           setEsperando(0);
@@ -292,7 +287,7 @@ export default function CapturaCenso({ archivo, captura, idCenso, idFinca, conte
       <div className="captura-cab">
         <h3 id="t-captura-nueva">Captura y pesos por bovino</h3>
         <EstadoGuardado guardado={guardado} idFinca={idFinca} idCenso={idCenso}
-          onReintentar={() => guardarEnFicha(tabla, modelo, guardado.conImagen)} />
+          onReintentar={() => guardarEnFicha(tabla, guardado.conImagen)} />
       </div>
       <div className="captura-ficha">
         <figure className="captura-figura">
@@ -330,7 +325,7 @@ export default function CapturaCenso({ archivo, captura, idCenso, idFinca, conte
               <span>
                 {esVideo ? `Fotograma del segundo ${Math.round(captura.segundo)}` : "Imagen analizada"} · {animales.length} de {Math.max(conteo, animales.length)} bovinos marcados
               </span>
-              <span className="tenue">Recuadros y pesos aproximados{modelo ? ` · ${modelo}` : ""}</span>
+              <span className="tenue">Recuadros y pesos aproximados</span>
               <button type="button" className="btn-texto" onClick={descargar}>Descargar imagen</button>
             </figcaption>
           )}

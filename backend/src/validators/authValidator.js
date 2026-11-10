@@ -4,13 +4,11 @@ const registrarValidator = [
   body("nombre")
     .trim()
     .notEmpty().withMessage("El nombre es obligatorio")
-    .isLength({ max: 100 })
-    .escape(),
+    .isLength({ max: 100 }),
   body("apellido")
     .trim()
     .notEmpty().withMessage("El apellido es obligatorio")
-    .isLength({ max: 100 })
-    .escape(),
+    .isLength({ max: 100 }),
   body("correo")
     .trim()
     .notEmpty().withMessage("El correo es obligatorio")
@@ -43,13 +41,11 @@ const actualizarPerfilValidator = [
   body("nombre")
     .trim()
     .notEmpty().withMessage("El nombre es obligatorio")
-    .isLength({ max: 100 }).withMessage("El nombre no puede superar 100 caracteres")
-    .escape(),
+    .isLength({ max: 100 }).withMessage("El nombre no puede superar 100 caracteres"),
   body("apellido")
     .trim()
     .notEmpty().withMessage("El apellido es obligatorio")
-    .isLength({ max: 100 }).withMessage("El apellido no puede superar 100 caracteres")
-    .escape(),
+    .isLength({ max: 100 }).withMessage("El apellido no puede superar 100 caracteres"),
   body("correo")
     .trim()
     .notEmpty().withMessage("El correo es obligatorio")

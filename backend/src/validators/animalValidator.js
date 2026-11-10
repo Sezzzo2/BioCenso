@@ -25,8 +25,7 @@ const camposComunesAnimal = [
   body("estado_reproductivo")
     .optional({ values: "falsy" })
     .trim()
-    .isLength({ max: 50 })
-    .escape(),
+    .isLength({ max: 50 }),
   body("estado_general")
     .optional({ values: "falsy" })
     .isIn(ESTADOS_GENERALES_VALIDOS)
@@ -34,8 +33,7 @@ const camposComunesAnimal = [
   body("enfermedad")
     .optional({ values: "falsy" })
     .trim()
-    .isLength({ max: 255 })
-    .escape(),
+    .isLength({ max: 255 }),
 ];
 
 const crearAnimalValidator = [

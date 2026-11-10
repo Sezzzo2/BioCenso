@@ -51,18 +51,31 @@ if (process.env.NODE_ENV !== "test") {
 // (las imágenes van por multipart/form-data, no por este parser).
 app.use(express.json({ limit: "100kb" }));
 
-// Rate limiting global (protección general contra abuso/DoS básico)
+const esLoginORegistro = (req) =>
+  req.method === "POST" && (req.path === "/api/auth/login" || req.path === "/api/auth/registro");
+
+// Rate limiting global (protección general contra abuso/DoS básico). Cada pantalla hace
+// varias peticiones (una por finca), así que 200 se agotaban navegando con normalidad.
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 200,
+  max: 1000,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: "Demasiadas solicitudes, intenta de nuevo más tarde" },
-  skip: (req) =>
-    req.method === "POST" &&
-    (req.path === "/api/auth/login" || req.path === "/api/auth/registro"),
+  skip: (req) => esLoginORegistro(req) || req.path.startsWith("/health"),
 });
 app.use(limiter);
+
+// Inicio de sesión y registro: límite propio y más estricto contra el tanteo de contraseñas
+const limiterAcceso = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Demasiados intentos. Espera unos minutos e inténtalo de nuevo." },
+  skip: (req) => !esLoginORegistro(req) || process.env.NODE_ENV === "test",
+});
+app.use(limiterAcceso);
 
 // En planes gratuitos los servicios se duermen sin uso. La página llama a /health al
 // abrirse; aquí se despierta también el servicio de IA (como mucho una vez cada 5 min)

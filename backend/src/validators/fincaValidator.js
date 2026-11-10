@@ -4,23 +4,19 @@ const crearFincaValidator = [
   body("nombre")
     .trim()
     .notEmpty().withMessage("El nombre de la finca es obligatorio")
-    .isLength({ min: 2, max: 150 }).withMessage("El nombre debe tener entre 2 y 150 caracteres")
-    .escape(),
+    .isLength({ min: 2, max: 150 }).withMessage("El nombre debe tener entre 2 y 150 caracteres"),
   body("municipio")
     .trim()
     .notEmpty().withMessage("El municipio es obligatorio")
-    .isLength({ max: 100 })
-    .escape(),
+    .isLength({ max: 100 }),
   body("departamento")
     .trim()
     .notEmpty().withMessage("El departamento es obligatorio")
-    .isLength({ max: 100 })
-    .escape(),
+    .isLength({ max: 100 }),
   body("direccion")
     .optional({ values: "falsy" })
     .trim()
-    .isLength({ max: 200 })
-    .escape(),
+    .isLength({ max: 200 }),
 ];
 
 const idFincaParamValidator = [

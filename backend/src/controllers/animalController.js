@@ -68,7 +68,12 @@ async function actualizarAnimal(req, res) {
     enfermedad,
   } = req.body;
 
-  const imagen_url = req.file ? req.file.path : req.body.imagen_url || null;
+  // Sin foto nueva se conserva la que ya tenía: el formulario de edición no reenvía la URL
+  let imagen_url = req.file ? req.file.path : null;
+  if (!imagen_url) {
+    const actual = await pool.query("SELECT imagen_url FROM animal WHERE id_animal = $1", [id]);
+    imagen_url = actual.rows[0]?.imagen_url ?? null;
+  }
 
   const result = await pool.query(
     "SELECT * FROM fn_actualizar_animal($1,$2,$3,$4,$5,$6,$7,$8,$9)",

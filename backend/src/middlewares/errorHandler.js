@@ -1,7 +1,6 @@
 function errorHandler(err, req, res, next) {
-  console.error("ERROR:", err);
-  console.error("MENSAJE:", err?.message, "| CODIGO:", err?.http_code || err?.code);
-  console.error(err);
+  // Los errores previstos (con mensaje público) ya los registró quien los lanzó
+  if (!err.publicMessage) console.error("ERROR:", err?.http_code || err?.code || "", err);
 
   if (err.message === "Origen no permitido por CORS") {
     return res.status(403).json({ error: "Origen no permitido" });
@@ -27,7 +26,12 @@ function errorHandler(err, req, res, next) {
   }
 
   if (err.code === "23505") {
-    return res.status(409).json({ error: "El registro ya existe (violación de unicidad)" });
+    const mensajes = {
+      usuario_correo_key: "Ya existe una cuenta con ese correo.",
+      uq_animal_finca_numero: "Ya hay un bovino con ese número en esta finca.",
+      uq_vacunas_nombre: "Esa vacuna ya está en el catálogo.",
+    };
+    return res.status(409).json({ error: mensajes[err.constraint] || "Ya existe un registro con esos datos." });
   }
 
   if (err.code === "23503") {

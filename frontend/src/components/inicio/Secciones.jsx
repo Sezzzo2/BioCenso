@@ -3,14 +3,14 @@ import Icon from "../ui/Icon.jsx";
 // Secciones informativas compartidas por la portada pública y el inicio de la app
 
 const PASOS = [
-  ["Vuela sobre el potrero", "Graba tu finca con el dron a unos 30 a 50 metros de altura y con luz suave."],
+  ["Vuela sobre el potrero", "Graba tu finca con el dron a unos 10 a 20 metros de altura y con luz suave."],
   ["Sube el video", "En Censo elige la finca, la fecha del vuelo y el archivo del video."],
   ["Recibe el conteo", "El modelo de visión por computadora detecta cada bovino y suma el total. El resultado queda guardado en tu historial."],
   ["Compara con tu registro", "En Fincas registra cada animal y revisa si el conteo del dron coincide con tu inventario."],
 ];
 
 const CONSEJOS = [
-  ["altura", "Altura de vuelo", "Entre 30 y 50 metros: los animales se ven completos y con buen detalle."],
+  ["altura", "Altura de vuelo", "Entre 10 y 20 metros: los animales se ven completos y con buen detalle."],
   ["recorrido", "Recorrido", "Avanza en líneas paralelas y no pases dos veces por la misma zona, así no se cuenta dos veces a un animal."],
   ["sun", "Luz", "Graba a primera hora o con cielo nublado para evitar sombras fuertes."],
   ["video", "Formato del video", "Sube el archivo en MP4 o MOV, tal como sale del dron."],

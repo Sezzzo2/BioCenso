@@ -160,7 +160,7 @@ export default function Censo() {
             <div className="campo">
               <label htmlFor="c-altura">Altura de vuelo en metros <span className="tenue">(opcional)</span></label>
               <input id="c-altura" type="number" className="ctl" min="5" max="500" step="1" inputMode="numeric"
-                placeholder="Ej.: 40" disabled={ocupado} value={altura} onChange={(e) => setAltura(e.target.value)}
+                placeholder="Ej.: 15" disabled={ocupado} value={altura} onChange={(e) => setAltura(e.target.value)}
                 aria-describedby="c-altura-ayuda" />
               <p id="c-altura-ayuda" className="pista">La altura que marcó el dron. Le da escala a la IA para estimar mejor el peso de cada animal.</p>
             </div>

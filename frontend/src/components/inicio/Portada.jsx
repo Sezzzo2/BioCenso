@@ -110,7 +110,7 @@ export function QueIncluye() {
 
 const PREGUNTAS = [
   ["¿Qué tan exacto es el conteo?",
-    "Es una estimación hecha por inteligencia artificial. Funciona mejor con vuelos a 30 a 50 metros, buena luz y sin pasar dos veces por la misma zona. Para medir qué tan cerca estuvo, registra tu conteo manual en la ficha del censo y BioCenso te muestra la diferencia."],
+    "Es una estimación hecha por inteligencia artificial. Funciona mejor con vuelos a 10 a 20 metros, buena luz y sin pasar dos veces por la misma zona. Para medir qué tan cerca estuvo, registra tu conteo manual en la ficha del censo y BioCenso te muestra la diferencia."],
   ["¿Los pesos son reales?",
     "Son aproximados: se calculan por el tamaño y el tipo de cada animal visto desde el aire. Sirven para tener una idea del peso del hato, no reemplazan la báscula."],
   ["¿Qué video necesito?",

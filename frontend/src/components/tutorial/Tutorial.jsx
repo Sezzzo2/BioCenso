@@ -27,7 +27,7 @@ const PASOS = [
     titulo: "3. Sube el video del dron",
     donde: "Menú Censo → Iniciar conteo",
     texto: "Elige la finca y la fecha del vuelo y carga el video en MP4 o MOV, de hasta 200 MB. El análisis tarda unos minutos.",
-    puntos: ["Vuela a 30–50 metros de altura.", "Graba con luz suave, temprano o con cielo nublado.", "No pases dos veces por la misma zona."],
+    puntos: ["Vuela a 10–20 metros de altura.", "Graba con luz suave, temprano o con cielo nublado.", "No pases dos veces por la misma zona."],
   },
   {
     icono: "escaner",

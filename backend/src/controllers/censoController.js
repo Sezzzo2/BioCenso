@@ -28,8 +28,24 @@ const detalleIA = (error) => JSON.stringify(error.response?.data?.detail ?? erro
 // esperar a que lo procese y generar la respuesta
 const AI_TIMEOUT_MS = Number(process.env.AI_TIMEOUT_MS) || 600000;
 
+// Datos que dan escala a la IA para estimar el peso: la altura del vuelo y los pesos reales
+// que el ganadero registró en la finca (solo números, sin nombres ni textos libres)
+async function calibracionDe(idFinca, alturaVuelo) {
+  const calibracion = {};
+  const altura = Number(alturaVuelo);
+  if (Number.isFinite(altura) && altura > 0) calibracion.altura_m = altura;
+  try {
+    const pesos = await pool.query("SELECT * FROM fn_pesos_registrados_finca($1)", [idFinca]);
+    if (pesos.rows.length) calibracion.finca = pesos.rows;
+  } catch (error) {
+    // Sin calibración el censo sigue adelante: solo se pierde la referencia
+    console.error("No se pudieron leer los pesos registrados de la finca", idFinca, error.message);
+  }
+  return JSON.stringify(calibracion);
+}
+
 async function crearCenso(req, res) {
-  const { id_finca, nota, fecha_vuelo } = req.body;
+  const { id_finca, nota, fecha_vuelo, altura_vuelo } = req.body;
 
   if (!req.file) {
     return res.status(422).json({
@@ -39,14 +55,15 @@ async function crearCenso(req, res) {
 
   // 1. Crear el censo en estado "Procesando" antes de llamar a la IA
   const censoInicial = await pool.query(
-    "SELECT * FROM fn_crear_censo($1, $2, $3, $4, $5)",
-    [id_finca, nota || null, "Procesando", fecha_vuelo || null, req.file.originalname.slice(0, 255)]
+    "SELECT * FROM fn_crear_censo($1, $2, $3, $4, $5, $6)",
+    [id_finca, nota || null, "Procesando", fecha_vuelo || null, req.file.originalname.slice(0, 255), altura_vuelo || null]
   );
   const idCenso = censoInicial.rows[0].id_censo;
 
   try {
     // 2. Reenviar el archivo al servicio de IA leyéndolo del disco por partes
     const formData = new FormData();
+    formData.append("calibracion", await calibracionDe(id_finca, altura_vuelo));
     formData.append("imagen", fs.createReadStream(req.file.path), {
       filename: req.file.originalname,
       contentType: req.file.mimetype,
@@ -110,7 +127,14 @@ async function listarCensosPorFinca(req, res) {
 async function obtenerCenso(req, res) {
   const { id } = req.params;
 
-  const result = await pool.query("SELECT * FROM vista_censo_completo WHERE id_censo = $1", [id]);
+  // La altura del vuelo no está en la vista (la migración 001 la recrea con sus columnas)
+  const result = await pool.query(
+    `SELECT v.*, c.altura_vuelo_m
+     FROM vista_censo_completo v
+     JOIN censo c ON c.id_censo = v.id_censo
+     WHERE v.id_censo = $1`,
+    [id]
+  );
   if (result.rows.length === 0) {
     return res.status(404).json({ error: "Censo no encontrado" });
   }
@@ -141,14 +165,16 @@ async function detectarCaptura(req, res) {
     });
   }
   try {
+    const censo = await pool.query("SELECT id_finca, altura_vuelo_m FROM censo WHERE id_censo = $1", [req.params.id]);
     const formData = new FormData();
+    formData.append("calibracion", await calibracionDe(censo.rows[0]?.id_finca, censo.rows[0]?.altura_vuelo_m));
     formData.append("fotograma", req.file.buffer, {
       filename: "fotograma.jpg",
       contentType: req.file.mimetype,
     });
     const respuesta = await axios.post(`${AI_SERVICE_URL}/detectar`, formData, {
       headers: { ...formData.getHeaders(), "X-Servicio-Token": process.env.AI_SERVICE_TOKEN || "" },
-      timeout: 180000,
+      timeout: 240000,
     });
     res.json({
       animales: Array.isArray(respuesta.data?.animales) ? respuesta.data.animales : [],
@@ -242,6 +268,14 @@ async function guardarCaptura(req, res) {
     null,
     JSON.stringify(pesos),
   ]);
+
+  // El peso promedio del censo pasa a ser el de esta tabla, para que la ficha, el panel
+  // y el historial muestren las mismas cifras
+  const conPeso = pesos.filter((p) => p.peso_kg != null);
+  if (conPeso.length) {
+    const promedio = conPeso.reduce((s, p) => s + p.peso_kg, 0) / conPeso.length;
+    await pool.query("SELECT fn_actualizar_peso_deteccion($1, $2)", [id, Math.round(promedio * 100) / 100]);
+  }
   res.status(201).json(sinModelo(result.rows[0]));
 }
 

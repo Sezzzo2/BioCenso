@@ -38,6 +38,7 @@ export default function Censo() {
   const [idFinca, setIdFinca] = useState(params.get("finca") ?? "");
   const [fecha, setFecha] = useState(hoyISO());
   const [nota, setNota] = useState("");
+  const [altura, setAltura] = useState("");
   const [archivo, setArchivo] = useState(null);
   const [sobre, setSobre] = useState(false);
   const [fase, setFase] = useState("inicial"); // inicial | subiendo | analizando
@@ -89,6 +90,9 @@ export default function Censo() {
     if (!fincaElegida) return setError("Elige la finca donde volaste el dron. Si no tienes una, regístrala en Fincas.");
     if (!fecha) return setError("Indica la fecha del vuelo.");
     if (fecha > hoyISO()) return setError("La fecha del vuelo no puede ser futura.");
+    if (altura !== "" && !(Number(altura) >= 5 && Number(altura) <= 500)) {
+      return setError("La altura de vuelo debe estar entre 5 y 500 metros. Si no la sabes, deja el campo vacío.");
+    }
     if (!archivo) return setError("Falta el video. Arrástralo al recuadro o haz click para elegirlo.");
 
     controlador.current = new AbortController();
@@ -100,6 +104,7 @@ export default function Censo() {
         idFinca: fincaElegida,
         nota,
         fechaVuelo: fecha,
+        alturaVuelo: altura,
         archivo,
         signal: controlador.current.signal,
         onProgress: (p) => {
@@ -151,6 +156,13 @@ export default function Censo() {
               <label htmlFor="c-fecha">Fecha del vuelo</label>
               <input id="c-fecha" type="date" className="ctl" value={fecha} max={hoyISO()} disabled={ocupado}
                 onChange={(e) => setFecha(e.target.value)} />
+            </div>
+            <div className="campo">
+              <label htmlFor="c-altura">Altura de vuelo en metros <span className="tenue">(opcional)</span></label>
+              <input id="c-altura" type="number" className="ctl" min="5" max="500" step="1" inputMode="numeric"
+                placeholder="Ej.: 40" disabled={ocupado} value={altura} onChange={(e) => setAltura(e.target.value)}
+                aria-describedby="c-altura-ayuda" />
+              <p id="c-altura-ayuda" className="pista">La altura que marcó el dron. Le da escala a la IA para estimar mejor el peso de cada animal.</p>
             </div>
             <div className="campo">
               <label htmlFor="c-nota">Nota <span className="tenue">(opcional)</span></label>
@@ -269,8 +281,16 @@ function Resultado({ data, finca, fecha, archivo, onCerrar }) {
   const det = data?.deteccion || data?.censo || {};
   const id = idDeCenso(data);
   const detectados = det.cantidad_animales ?? det.count ?? null;
-  const peso = det.peso_estimado ?? det.peso_estimado_promedio ?? null;
-  const total = detectados != null && peso != null ? Math.round(detectados * peso) : null;
+  const pesoIA = det.peso_estimado ?? det.peso_estimado_promedio ?? null;
+  // Cuando la tabla de bovinos está lista, el promedio y el total salen de ella (son los
+  // mismos valores que quedan guardados en la ficha)
+  const [tabla, setTabla] = useState(null);
+  const conPeso = (tabla ?? []).filter((p) => p.peso_kg != null);
+  const suma = conPeso.reduce((s, p) => s + p.peso_kg, 0);
+  const peso = conPeso.length ? Math.round(suma / conPeso.length) : pesoIA != null ? Math.round(pesoIA) : null;
+  const total = detectados != null && peso != null
+    ? Math.round(conPeso.length === detectados ? suma : detectados * peso)
+    : null;
   const diferencia = detectados != null && finca ? detectados - finca.registrados : null;
 
   return (
@@ -296,7 +316,7 @@ function Resultado({ data, finca, fecha, archivo, onCerrar }) {
         {total != null && <> Peso total estimado: <b>{total.toLocaleString("es-CO")} kg</b>.</>}
       </p>
       <CapturaCenso archivo={archivo} captura={data?.captura} idCenso={id} idFinca={finca?.id_finca}
-        conteo={detectados ?? 0} pesoPromedio={peso} reses={data?.reses} />
+        conteo={detectados ?? 0} pesoPromedio={pesoIA} reses={data?.reses} onTabla={setTabla} />
     </>
   );
 }

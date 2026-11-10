@@ -239,6 +239,7 @@ export default function CensoDetalle() {
           <dl className="dl" style={{ marginTop: 16 }}>
             <dt>Finca</dt><dd><Link className="fila-link" to={`/fincas/${id}`}>{censo.nombre_finca}</Link></dd>
             <dt>Fecha del vuelo</dt><dd>{censo.fecha_vuelo ? formatFechaLarga(censo.fecha_vuelo) : "Sin registrar"}</dd>
+            <dt>Altura de vuelo</dt><dd>{censo.altura_vuelo_m != null ? `${Number(censo.altura_vuelo_m)} m` : "Sin registrar"}</dd>
             <dt>Procesado</dt><dd>{fechaHora(censo.fecha_procesamiento)}</dd>
             <dt>Archivo</dt><dd>{censo.nombre_archivo || "—"}</dd>
             <dt>Estado</dt><dd><StatusBadge estado={censo.estado} /></dd>

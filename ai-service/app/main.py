@@ -7,7 +7,7 @@ import time
 import urllib.error
 import urllib.request
 
-from fastapi import FastAPI, File, Header, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, Header, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 
 # La clave nunca va en el código: se configura como variable de entorno del servicio
@@ -42,11 +42,17 @@ INTENTOS_MEJOR = int(os.getenv("GEMINI_INTENTOS_MEJOR", "3"))
 ESPERAS = [3, 8, 15]
 
 
-def con_pensamiento_medio(cuerpo):
-    """Misma petición con razonamiento medio: alcanza para estimar bien el peso de cada res
-    en una sola imagen y responde antes que con el razonamiento completo."""
+# Ajustes opcionales de la generación. Si un modelo no los acepta (400) o la petición se pasa
+# del límite de tokens por minuto (429), se repite sin ellos antes de cambiar de modelo.
+# - Captura: razonamiento medio; alcanza para medir cada res en una imagen y responde antes.
+# - Censo: fotogramas del video en alta resolución, para ver mejor el tamaño de cada animal.
+EXTRAS_CAPTURA = {"thinkingConfig": {"thinkingLevel": "medium"}}
+EXTRAS_CENSO = {"mediaResolution": "MEDIA_RESOLUTION_HIGH"}
+
+
+def con_extras(cuerpo, extras):
     datos = json.loads(cuerpo)
-    datos.setdefault("generationConfig", {})["thinkingConfig"] = {"thinkingLevel": "medium"}
+    datos.setdefault("generationConfig", {}).update(extras)
     return json.dumps(datos).encode("utf-8")
 
 
@@ -56,27 +62,29 @@ def fallo_ia(motivo, fallos):
     raise HTTPException(status_code=503, detail={"motivo": motivo, "fallos": fallos})
 
 
-def llamar_gemini(cuerpo, presupuesto=TIMEOUT_TOTAL, rapido=False):
+def llamar_gemini(cuerpo, presupuesto=TIMEOUT_TOTAL, extras=None, timeout=TIMEOUT_MODELO):
     limite = time.monotonic() + presupuesto
     modelos = list(dict.fromkeys(MODELOS))
     intentos = [modelos[0]] * INTENTOS_MEJOR + modelos[1:]
+    cuerpo_extras = con_extras(cuerpo, extras) if extras else None
+    sin_extras = set()  # modelos que ya rechazaron los ajustes opcionales
     fallos = []
     for n, modelo in enumerate(intentos):
         restante = limite - time.monotonic()
         if restante < 5:
             break
-        datos = con_pensamiento_medio(cuerpo) if rapido and modelo.startswith("gemini-3") else cuerpo
+        datos = cuerpo_extras if cuerpo_extras and modelo not in sin_extras else cuerpo
         req = urllib.request.Request(
             url_modelo(modelo), data=datos,
             headers={"Content-Type": "application/json"}, method="POST",
         )
         try:
-            with urllib.request.urlopen(req, timeout=min(TIMEOUT_MODELO, restante)) as resp:
+            with urllib.request.urlopen(req, timeout=min(timeout, restante)) as resp:
                 return json.loads(resp.read().decode("utf-8")), modelo
         except urllib.error.HTTPError as error:
-            if error.code == 400 and datos is not cuerpo:
-                # El modelo no acepta thinkingLevel: se repite tal cual
-                rapido = False
+            if error.code in (400, 429) and datos is not cuerpo:
+                print(f"{modelo} no aceptó los ajustes opcionales ({error.code}); se repite sin ellos", flush=True)
+                sin_extras.add(modelo)
                 intentos.insert(n + 1, modelo)
                 continue
             if error.code not in REINTENTABLES:
@@ -99,12 +107,49 @@ def llamar_gemini(cuerpo, presupuesto=TIMEOUT_TOTAL, rapido=False):
 
 # Cómo estimar el peso: a partir de lo que se ve de cada animal, sin empujarlo hacia un
 # valor elegido de antemano. Los rangos típicos solo orientan y se pueden superar.
-REFERENCIA_PESOS = """Cómo estimar el peso de cada res (peso vivo en kilogramos):
-- Estima CADA animal por separado a partir de lo que se ve de él: largo y ancho del cuerpo, profundidad del tórax, tamaño frente a las demás reses y objetos de la escena, y su condición corporal (costillas y cadera marcadas = flaco; lomo ancho y redondeado = gordo).
-- Da el valor más probable para ese animal, sin redondear a cifras parecidas para todos ni acercarlo a un valor fijo. Si hay animales de distinto tamaño, sus pesos deben ser distintos.
-- La categoría (vaca, toro, novillo, novilla o ternero) se decide por su tamaño, su forma y su comportamiento, no al revés.
-- Como orientación, en la Orinoquía colombiana (Brahman, cebú y sus cruces) suelen pesar: vaca adulta 380-600 kg, toro 550-1000 kg, novillo 250-500 kg, novilla 250-420 kg, ternero 60-250 kg. Si lo que ves indica un peso fuera de ese rango, usa lo que ves.
-- Si un animal se ve mal (lejos, tapado o borroso), estímalo igual con lo que se alcance a ver de su tamaño."""
+REFERENCIA_PESOS = """Cómo estimar el peso de cada res (peso vivo en kilogramos). Sigue estos pasos en orden:
+1. ESCALA. Antes de medir animales, determina cuántos metros de terreno cubre la imagen. Usa la altura de vuelo si se indica más abajo y cualquier objeto de tamaño conocido que se vea: postes y cuerdas de cerca, bebederos, saladeros, portones, personas, vehículos, caminos.
+2. MEDIDAS. Con esa escala mide CADA animal por separado: su largo de cuerpo (de la cruz a la base de la cola, sin cabeza ni cuello) en "largo_cm" y su ancho a la altura del vientre. Si está echado o se ve de lado, corrige la medida por la postura y la perspectiva.
+3. CONDICIÓN CORPORAL. Observa si está flaco (costillas, cadera y espinazo marcados), normal o gordo (lomo ancho y redondeado, grupa llena).
+4. PESO. A partir del largo, el ancho y la condición corporal da el peso más probable de ESE animal. Un cuerpo más largo y más ancho pesa más aunque sea de la misma categoría; dos animales de distinto tamaño no pueden quedar con el mismo peso. No redondees a cifras parecidas para todos ni acerques los valores a un número fijo.
+5. CATEGORÍA. Decide si es vaca, toro, novillo, novilla o ternero por su tamaño, su forma (giba, cuello, cabeza) y su comportamiento, después de medirlo.
+- Como orientación, en la Orinoquía colombiana (Brahman, cebú y sus cruces) suelen pesar: vaca adulta 380-600 kg, toro 550-1000 kg, novillo 250-500 kg, novilla 250-420 kg, ternero 60-250 kg. Si tus medidas indican un peso fuera de ese rango, usa tus medidas.
+- Si un animal se ve mal (lejos, tapado o borroso), estímalo igual con lo que se alcance a medir."""
+
+
+def texto_calibracion(calibracion):
+    """Convierte los datos del vuelo y de la finca (JSON que arma el backend) en una nota para la IA."""
+    try:
+        datos = json.loads(calibracion or "{}")
+    except (TypeError, ValueError):
+        return ""
+    if not isinstance(datos, dict):
+        return ""
+    lineas = []
+    try:
+        altura = float(datos.get("altura_m") or 0)
+    except (TypeError, ValueError):
+        altura = 0
+    if 5 <= altura <= 500:
+        lineas.append(
+            f"- Altura de vuelo: el dron voló a unos {altura:g} m sobre el terreno. Con la cámara apuntando hacia abajo y "
+            f"el lente gran angular habitual de un dron, el ancho de terreno que cubre la imagen es de aproximadamente "
+            f"{altura * 1.4:.0f} a {altura * 1.6:.0f} m. Úsalo para pasar de la imagen a metros.")
+    grupos = []
+    for g in datos.get("finca") if isinstance(datos.get("finca"), list) else []:
+        try:
+            n, prom, minimo, maximo = int(g["cantidad"]), float(g["promedio"]), float(g["minimo"]), float(g["maximo"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        sexo = {"hembra": "hembras", "macho": "machos"}.get(str(g.get("sexo", "")).lower())
+        if sexo and n > 0 and 20 <= minimo <= maximo <= 2000:
+            grupos.append(f"{n} {sexo} con promedio de {prom:.0f} kg (de {minimo:.0f} a {maximo:.0f} kg)")
+    if grupos:
+        lineas.append(
+            "- Pesos reales que el ganadero tiene registrados en esta misma finca: " + "; ".join(grupos) + ". "
+            "Sirven para saber qué tamaños son normales en este hato y afinar la escala, pero cada res se "
+            "estima por sus propias medidas: no copies estos valores.")
+    return ("\n\nDatos de este vuelo y de esta finca:\n" + "\n".join(lineas)) if lineas else ""
 
 PROMPT_CENSO = """Actúa como el motor de visión por computadora de BioCenso especializado en detección y conteo de ganado bovino (vacas, toros, novillos, terneros).
 1. Examina con máxima atención todo el video o imagen de principio a fin y cuenta TODAS las vacas/reses que aparecen en la escena o recorrido (de pie, echadas, caminando, agrupadas, parcialmente visibles o en sombra). NO subestimes el conteo: "count" debe ser el número total real de reses identificadas.
@@ -115,12 +160,12 @@ Responde ÚNICAMENTE con JSON válido con esta forma (los valores entre <> son l
 {
   "count": <número de reses>,
   "reses": [
-    {"categoria": "<vaca|toro|novillo|novilla|ternero>", "peso_kg": <peso estimado de esa res>, "segundo": <segundo del video>}
+    {"categoria": "<vaca|toro|novillo|novilla|ternero>", "largo_cm": <largo de cuerpo medido>, "peso_kg": <peso estimado de esa res>, "segundo": <segundo del video>}
   ],
   "captura": {
     "segundo": <segundo del fotograma>,
     "animales": [
-      {"box_2d": [<ymin>, <xmin>, <ymax>, <xmax>], "peso_kg": <peso estimado de esa res>}
+      {"box_2d": [<ymin>, <xmin>, <ymax>, <xmax>], "categoria": "<vaca|toro|novillo|novilla|ternero>", "largo_cm": <largo de cuerpo medido>, "peso_kg": <peso estimado de esa res>}
     ]
   }
 }
@@ -267,7 +312,7 @@ Para cada res da su recuadro "box_2d" = [ymin, xmin, ymax, xmax] ajustado al cue
 """ + REFERENCIA_PESOS + """
 
 Responde ÚNICAMENTE con JSON válido con esta forma (los valores entre <> son lo que debes estimar):
-{"animales": [{"box_2d": [<ymin>, <xmin>, <ymax>, <xmax>], "categoria": "<vaca|toro|novillo|novilla|ternero>", "peso_kg": <peso estimado de esa res>}]}
+{"animales": [{"box_2d": [<ymin>, <xmin>, <ymax>, <xmax>], "categoria": "<vaca|toro|novillo|novilla|ternero>", "largo_cm": <largo de cuerpo medido>, "peso_kg": <peso estimado de esa res>}]}
 Si no hay reses, responde {"animales": []}."""
 
 
@@ -290,7 +335,7 @@ def health():
 # Función síncrona a propósito: FastAPI la ejecuta en un hilo aparte, así las esperas
 # a Gemini no bloquean otras peticiones.
 @app.post("/predict")
-def predict(imagen: UploadFile = File(...), x_servicio_token: str = Header(default="")):
+def predict(imagen: UploadFile = File(...), calibracion: str = Form(default=""), x_servicio_token: str = Header(default="")):
     if SERVICIO_TOKEN and not hmac.compare_digest(x_servicio_token, SERVICIO_TOKEN):
         raise HTTPException(status_code=401, detail="No autorizado")
     if not API_KEY:
@@ -310,16 +355,23 @@ def predict(imagen: UploadFile = File(...), x_servicio_token: str = Header(defau
         parte_archivo = {"fileData": {"mimeType": subido.get("mimeType", mime_type), "fileUri": subido["uri"]}}
 
     payload = {
-        "contents": [{"parts": [parte_archivo, {"text": PROMPT_CENSO}]}],
+        "contents": [{"parts": [parte_archivo, {"text": PROMPT_CENSO + texto_calibracion(calibracion)}]}],
         "generationConfig": {"responseMimeType": "application/json", "temperature": 0.1},
     }
     try:
-        raw_resp, modelo_usado = llamar_gemini(json.dumps(payload).encode("utf-8"))
+        # Un video largo con la lista de cada res tarda más que una imagen: más tiempo por intento.
+        # El backend espera 600 s en total.
+        raw_resp, modelo_usado = llamar_gemini(
+            json.dumps(payload).encode("utf-8"), presupuesto=540, extras=EXTRAS_CENSO, timeout=170)
     finally:
         if subido:
             borrar_archivo(subido["name"])
 
     datos = leer_respuesta(raw_resp)
+    if isinstance(datos, list):  # a veces el modelo envuelve el objeto en una lista
+        datos = next((d for d in datos if isinstance(d, dict)), {})
+    if not isinstance(datos, dict):
+        raise HTTPException(status_code=502, detail="La IA devolvió una respuesta con un formato inesperado")
 
     conteo = max(0, int(datos.get("count", datos.get("conteo_maximo", 0)) or 0))
     reses = leer_reses(datos.get("reses"), conteo)
@@ -363,7 +415,7 @@ def predict(imagen: UploadFile = File(...), x_servicio_token: str = Header(defau
 # Marca las reses sobre una imagen exacta (el fotograma que el navegador extrajo del video).
 # Así los recuadros coinciden con lo que se ve, sin depender de que el segundo sea preciso.
 @app.post("/detectar")
-def detectar(fotograma: UploadFile = File(...), x_servicio_token: str = Header(default="")):
+def detectar(fotograma: UploadFile = File(...), calibracion: str = Form(default=""), x_servicio_token: str = Header(default="")):
     if SERVICIO_TOKEN and not hmac.compare_digest(x_servicio_token, SERVICIO_TOKEN):
         raise HTTPException(status_code=401, detail="No autorizado")
     if not API_KEY:
@@ -372,12 +424,14 @@ def detectar(fotograma: UploadFile = File(...), x_servicio_token: str = Header(d
     payload = {
         "contents": [{"parts": [
             {"inlineData": {"mimeType": fotograma.content_type or "image/jpeg", "data": base64.b64encode(contenido).decode("utf-8")}},
-            {"text": PROMPT_CAJAS},
+            {"text": PROMPT_CAJAS + texto_calibracion(calibracion)},
         ]}],
         "generationConfig": {"responseMimeType": "application/json", "temperature": 0.1},
     }
-    # El backend espera 180 s: se deja margen para que su respuesta llegue antes
-    raw_resp, modelo_usado = llamar_gemini(json.dumps(payload).encode("utf-8"), presupuesto=165, rapido=True)
+    # Medir cada res puede pasar de un minuto: cortar antes desperdicia la petición y obliga a
+    # repetirla. El backend espera 240 s; se deja margen para que la respuesta llegue antes.
+    raw_resp, modelo_usado = llamar_gemini(
+        json.dumps(payload).encode("utf-8"), presupuesto=230, extras=EXTRAS_CAPTURA, timeout=120)
     datos = leer_respuesta(raw_resp)
     lista = datos.get("animales") if isinstance(datos, dict) else datos
     return {"animales": leer_animales(lista), "modelo_gemini": modelo_usado}

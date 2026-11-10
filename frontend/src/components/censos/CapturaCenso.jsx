@@ -169,7 +169,7 @@ const comoBlob = (cv) => new Promise((ok) => cv.toBlob(ok, "image/jpeg", 0.9));
 // le pide marcar las reses sobre esa misma imagen, para que los recuadros coincidan.
 const SIN_RESES = []; // constante: un [] nuevo en cada render volvería a lanzar la captura
 
-export default function CapturaCenso({ archivo, captura, idCenso, idFinca, conteo = 0, pesoPromedio = null, reses = SIN_RESES }) {
+export default function CapturaCenso({ archivo, captura, idCenso, idFinca, conteo = 0, pesoPromedio = null, reses = SIN_RESES, onTabla }) {
   const lienzo = useRef(null);
   const fotogramaRef = useRef(null); // se conserva para reintentar sin volver a leer el video
   const [estado, setEstado] = useState("cargando"); // cargando | marcando | listo | sinReses | error
@@ -188,6 +188,7 @@ export default function CapturaCenso({ archivo, captura, idCenso, idFinca, conte
 
   // Guarda la tabla en la ficha del censo y, si se pudo marcar, la imagen con los recuadros
   const guardarEnFicha = useCallback(async (filas, conImagen) => {
+    onTabla?.(filas); // el resumen del censo usa el promedio y el total de esta tabla
     if (!idCenso || !filas.length) return;
     setGuardado({ estado: "guardando", conImagen });
     try {
@@ -200,7 +201,7 @@ export default function CapturaCenso({ archivo, captura, idCenso, idFinca, conte
     } catch {
       setGuardado({ estado: "error", conImagen });
     }
-  }, [idCenso, captura]);
+  }, [idCenso, captura, onTabla]);
 
   useEffect(() => {
     if (!archivo || !captura) return undefined;

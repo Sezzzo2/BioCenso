@@ -7,12 +7,15 @@ const crearCensoValidator = [
   body("nota")
     .optional({ values: "falsy" })
     .trim()
-    .isLength({ max: 500 })
-    .escape(),
+    .isLength({ max: 500 }),
   body("fecha_vuelo")
     .optional({ values: "falsy" })
     .isISO8601({ strict: true }).withMessage("fecha_vuelo debe tener formato AAAA-MM-DD")
     .custom((valor) => new Date(valor) <= new Date()).withMessage("La fecha del vuelo no puede ser futura"),
+  // Altura del dron sobre el terreno: da la escala para estimar el tamaño de cada animal
+  body("altura_vuelo")
+    .optional({ values: "falsy" })
+    .isFloat({ min: 5, max: 500 }).withMessage("La altura de vuelo debe estar entre 5 y 500 metros"),
 ];
 
 const idFincaParamValidator = [

@@ -52,12 +52,13 @@ export const idDeCenso = (data) =>
   data?.censo?.id_censo ?? data?.id_censo ?? data?.id ?? null;
 
 // El backend reenvía el archivo al servicio de IA y guarda el censo en la base
-export const crearCenso = async ({ idFinca, nota, fechaVuelo, archivo, onProgress, signal }) => {
+export const crearCenso = async ({ idFinca, nota, fechaVuelo, alturaVuelo, archivo, onProgress, signal }) => {
   if (USAR_BACKEND) {
     const datos = new FormData();
     datos.append("id_finca", String(idFinca));
     if (nota?.trim()) datos.append("nota", nota.trim());
     if (fechaVuelo) datos.append("fecha_vuelo", fechaVuelo);
+    if (alturaVuelo) datos.append("altura_vuelo", String(alturaVuelo));
     datos.append("imagen", archivo);
     const r = await api.post("/censos", datos, {
       signal,
@@ -120,7 +121,7 @@ export const crearCenso = async ({ idFinca, nota, fechaVuelo, archivo, onProgres
 export const detectarCaptura = async (idCenso, fotograma) => {
   const datos = new FormData();
   datos.append("fotograma", fotograma, "fotograma.jpg");
-  const r = await api.post(`/censos/${idCenso}/captura`, datos, { timeout: 180000 });
+  const r = await api.post(`/censos/${idCenso}/captura`, datos, { timeout: 270000 });
   return { animales: r.data?.animales ?? [] };
 };
 

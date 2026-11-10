@@ -121,7 +121,8 @@ export const crearCenso = async ({ idFinca, nota, fechaVuelo, alturaVuelo, archi
 export const detectarCaptura = async (idCenso, fotograma) => {
   const datos = new FormData();
   datos.append("fotograma", fotograma, "fotograma.jpg");
-  const r = await api.post(`/censos/${idCenso}/captura`, datos, { timeout: 270000 });
+  // silencioso: la captura reintenta sola y muestra su propio motivo si al final falla
+  const r = await api.post(`/censos/${idCenso}/captura`, datos, { timeout: 270000, silencioso: true });
   return { animales: r.data?.animales ?? [] };
 };
 
@@ -139,7 +140,8 @@ export const guardarCaptura = async (idCenso, { imagen, pesos, segundo }) => {
 export const obtenerCaptura = async (idCenso) => {
   if (!USAR_BACKEND) return null;
   try {
-    const r = await api.get(`/censos/${idCenso}/captura`);
+    // Un censo sin captura guardada responde 404: no es un error para la persona
+    const r = await api.get(`/censos/${idCenso}/captura`, { silencioso: [404] });
     return r.data;
   } catch (err) {
     if (err.response?.status === 404) return null;

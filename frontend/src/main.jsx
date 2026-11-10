@@ -4,6 +4,7 @@ import { BrowserRouter } from "react-router-dom";
 import "./styles/biocenso.css";
 import { AuthProvider } from "./context/AuthContext.jsx";
 import App from "./App.jsx";
+import Avisos from "./components/ui/Avisos.jsx";
 
 // El backend gratuito se duerme sin uso: se despierta en cuanto se abre la página,
 // mientras la persona lee o inicia sesión.
@@ -16,6 +17,7 @@ createRoot(document.getElementById("root")).render(
     <BrowserRouter>
       <AuthProvider>
         <App />
+        <Avisos />
       </AuthProvider>
     </BrowserRouter>
   </StrictMode>

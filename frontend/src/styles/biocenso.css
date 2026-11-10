@@ -288,6 +288,17 @@ h1,h2,h3{color:var(--crema);letter-spacing:-.025em;line-height:1.08;text-wrap:ba
   .preguntas{padding:4px 18px}
 }
 
+/* ---------- Avisos emergentes (react-hot-toast) ---------- */
+/* No usar .aviso: esa clase ya es de los avisos de la página y está oculta por defecto */
+.toast-bc{
+  font-family:"DM Sans",system-ui,sans-serif!important;font-size:.95rem!important;line-height:1.45!important;
+  color:var(--crema)!important;background:var(--pasto-850)!important;
+  border:1px solid var(--linea-fuerte);border-radius:14px!important;padding:12px 16px!important;
+  max-width:min(460px,calc(100vw - 32px))!important;box-shadow:0 16px 36px -14px rgba(0,0,0,.7)!important;
+}
+.toast-bc-error{border-color:rgba(255,140,128,.45)}
+.toast-bc-ok{border-color:rgba(139,209,122,.45)}
+
 /* ---------- Tutorial de bienvenida ---------- */
 .tutorial{
   margin:auto;width:min(560px,calc(100vw - 32px));max-height:calc(100dvh - 32px);padding:0;border:1px solid var(--linea-fuerte);

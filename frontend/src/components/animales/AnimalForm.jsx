@@ -128,7 +128,7 @@ export default function AnimalForm({ inicial = {}, imagenActual = null, textoBot
         <legend>Salud y seguimiento <span className="tenue" style={{ fontWeight: 400, fontSize: ".9rem" }}>opcional</span></legend>
         <p>Estado actual del animal.</p>
         <div className="rejilla">
-          <FormField id="estado_reproductivo" label="Estado reproductivo">
+          <FormField id="estado_reproductivo" label="Tipo / estado reproductivo">
             <SelectField id="estado_reproductivo" name="estado_reproductivo" value={form.estado_reproductivo} onChange={cambiar}>
               <option value="">Seleccionar…</option>
               {ESTADOS_REPRODUCTIVOS.map((s) => <option key={s} value={s}>{s}</option>)}

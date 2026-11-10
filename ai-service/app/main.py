@@ -122,6 +122,14 @@ REFERENCIA_PESOS = """Cómo estimar el peso de cada res (peso vivo en kilogramos
 - Si un animal se ve mal (lejos, tapado o borroso), estímalo igual con lo que se alcance a medir."""
 
 
+NOMBRE_GRUPO = {  # (singular, plural)
+    "vaca": ("vaca", "vacas"), "toro": ("toro", "toros"), "novillo": ("novillo", "novillos"),
+    "novilla": ("novilla", "novillas"), "ternero": ("ternero", "terneros"), "ternera": ("ternera", "terneras"),
+    "hembra": ("hembra sin tipo registrado", "hembras sin tipo registrado"),
+    "macho": ("macho sin tipo registrado", "machos sin tipo registrado"),
+}
+
+
 def texto_calibracion(calibracion):
     """Convierte los datos del vuelo y de la finca (JSON que arma el backend) en una nota para la IA."""
     try:
@@ -146,9 +154,13 @@ def texto_calibracion(calibracion):
             n, prom, minimo, maximo = int(g["cantidad"]), float(g["promedio"]), float(g["minimo"]), float(g["maximo"])
         except (KeyError, TypeError, ValueError):
             continue
-        sexo = {"hembra": "hembras", "macho": "machos"}.get(str(g.get("sexo", "")).lower())
-        if sexo and n > 0 and 20 <= minimo <= maximo <= 2000:
-            grupos.append(f"{n} {sexo} con promedio de {prom:.0f} kg (de {minimo:.0f} a {maximo:.0f} kg)")
+        # Grupo = tipo de animal (vaca, ternero...) o, si no tiene tipo, su sexo
+        nombres = NOMBRE_GRUPO.get(str(g.get("grupo") or g.get("sexo") or "").lower())
+        if nombres and n > 0 and 20 <= minimo <= maximo <= 2000:
+            if n == 1:
+                grupos.append(f"1 {nombres[0]} de {prom:.0f} kg")
+            else:
+                grupos.append(f"{n} {nombres[1]}: promedio {prom:.0f} kg (de {minimo:.0f} a {maximo:.0f} kg)")
     if grupos:
         lineas.append(
             "- Pesos reales que el ganadero tiene registrados en esta misma finca: " + "; ".join(grupos) + ". "

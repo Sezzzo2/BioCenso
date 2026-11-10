@@ -196,6 +196,12 @@ const CATEGORIAS = new Set(["vaca", "toro", "novillo", "novilla", "ternero"]);
 // imagen: marcado en la captura · video: contado en otro momento del vuelo · promedio: sin peso propio
 const ORIGENES = new Set(["imagen", "video", "promedio"]);
 
+// Miniatura de cada res: un JPG pequeño en base64 (unos 5 KB), guardado dentro de la tabla.
+// Solo se aceptan imágenes JPEG de tamaño acotado; cualquier otra cosa se descarta.
+const MAX_MINIATURA = 40000;
+const esMiniatura = (v) =>
+  typeof v === "string" && v.length <= MAX_MINIATURA && /^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(v);
+
 // Lee la tabla de bovinos contados que manda el navegador:
 // [{ n, peso_kg, categoria?, origen?, segundo? }] con valores válidos
 function leerPesos(texto) {
@@ -220,6 +226,7 @@ function leerPesos(texto) {
       categoria: CATEGORIAS.has(fila?.categoria) ? fila.categoria : null,
       origen: ORIGENES.has(fila?.origen) ? fila.origen : null,
       segundo: segundo == null ? null : Math.round(segundo * 10) / 10,
+      miniatura: esMiniatura(fila?.miniatura) ? fila.miniatura : null,
     });
   }
   return pesos;

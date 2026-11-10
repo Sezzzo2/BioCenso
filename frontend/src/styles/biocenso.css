@@ -793,6 +793,10 @@ a.captura-lienzo:hover{border-color:var(--linea-fuerte)}
 .bovinos-tabla td.bovino-origen{text-align:left;color:var(--texto-suave);font-size:.85rem;white-space:nowrap}
 .bovino-num{display:inline-grid;place-items:center;min-width:28px;height:24px;padding:0 7px;border-radius:7px;background:rgba(241,243,234,.08);color:var(--texto);font-weight:700;font-size:.82rem;font-variant-numeric:tabular-nums}
 .bovino-num.en-imagen{background:var(--brote);color:var(--brote-tinta)}
+.bovino-id{display:inline-flex;align-items:center;gap:10px}
+.bovino-mini{flex:none;width:52px;height:52px;border-radius:9px;object-fit:cover;background:rgba(241,243,234,.06);border:1px solid var(--linea)}
+.bovino-mini.vacia{display:inline-block}
+.bovinos-tabla td:first-child{padding-top:6px;padding-bottom:6px}
 .bovinos-espera{min-height:200px;display:grid;place-items:center;padding:22px;text-align:center}
 
 /* Ficha del censo: conteo manual e información lado a lado */
@@ -807,6 +811,8 @@ a.captura-lienzo:hover{border-color:var(--linea-fuerte)}
 @media (max-width:560px){
   .captura{margin-top:22px;padding-top:18px}
   .bovinos-tabla th,.bovinos-tabla td{padding:8px 10px}
+  .bovino-mini{width:40px;height:40px;border-radius:7px}
+  .bovino-id{gap:6px}
 }
 @media (max-width:560px){
   .barra-publica{padding:12px 16px}

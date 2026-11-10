@@ -28,6 +28,7 @@ export default function TablaPesos({ pesos, titulo = "Bovinos contados" }) {
   const categorias = porCategoria(pesos);
   const conCategoria = pesos.some((p) => p.categoria);
   const conOrigen = pesos.some((p) => p.origen);
+  const conMiniaturas = pesos.some((p) => p.miniatura);
 
   return (
     <section className="bovinos" aria-labelledby="t-bovinos">
@@ -60,7 +61,14 @@ export default function TablaPesos({ pesos, titulo = "Bovinos contados" }) {
           <tbody>
             {pesos.map((p) => (
               <tr key={p.n}>
-                <td><span className={`bovino-num${p.origen === "imagen" ? " en-imagen" : ""}`}>{p.n}</span></td>
+                <td>
+                  <span className="bovino-id">
+                    {conMiniaturas && (p.miniatura
+                      ? <img className="bovino-mini" src={p.miniatura} alt={`Bovino ${p.n}`} loading="lazy" />
+                      : <span className="bovino-mini vacia" aria-hidden="true" />)}
+                    <span className={`bovino-num${p.origen === "imagen" ? " en-imagen" : ""}`}>{p.n}</span>
+                  </span>
+                </td>
                 {conCategoria && <td>{p.categoria ? NOMBRE_CATEGORIA[p.categoria] : "—"}</td>}
                 <td className="num">{p.peso_kg != null ? kg(p.peso_kg) : "—"}</td>
                 {conOrigen && <td className="bovino-origen">{dondeSeVe(p)}</td>}

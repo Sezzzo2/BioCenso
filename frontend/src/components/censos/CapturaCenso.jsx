@@ -40,6 +40,34 @@ function aLienzo(fuente, ancho, alto) {
   return cv;
 }
 
+// Fotograma que ya sacó el servidor (data URL). Sirve aunque el navegador no sepa leer el
+// video: muchos drones graban en H.265/HEVC, que Chrome en Windows no decodifica.
+function fotogramaDelServidor(dataUrl) {
+  return new Promise((resolver, rechazar) => {
+    const img = new Image();
+    img.onload = () => resolver(aLienzo(img, img.naturalWidth, img.naturalHeight));
+    img.onerror = () => rechazar(new Error("fotograma"));
+    img.src = dataUrl;
+  });
+}
+
+// Miniatura cuadrada de una res, recortada del fotograma con margen alrededor de su recuadro
+const LADO_MINIATURA = 160;
+function recortarMiniatura(fotograma, [ymin, xmin, ymax, xmax], margen = 0.35) {
+  const w = fotograma.width, h = fotograma.height;
+  const cx = ((xmin + xmax) / 2000) * w, cy = ((ymin + ymax) / 2000) * h;
+  let lado = Math.max(((xmax - xmin) / 1000) * w, ((ymax - ymin) / 1000) * h) * (1 + 2 * margen);
+  lado = Math.min(Math.max(lado, Math.min(w, h) * 0.06), w, h);
+  const x0 = Math.min(Math.max(0, cx - lado / 2), w - lado), y0 = Math.min(Math.max(0, cy - lado / 2), h - lado);
+  const salida = Math.min(LADO_MINIATURA, Math.round(lado));
+  const cv = document.createElement("canvas");
+  cv.width = cv.height = salida;
+  const ctx = cv.getContext("2d");
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(fotograma, x0, y0, lado, lado, 0, 0, salida, salida);
+  return cv.toDataURL("image/jpeg", 0.72);
+}
+
 // Obtiene el fotograma: la imagen tal cual o el instante del video que eligió la IA
 function extraerFotograma(archivo, segundo) {
   return new Promise((resolver, rechazar) => {
@@ -217,18 +245,21 @@ export default function CapturaCenso({ archivo, captura, idCenso, idFinca, conte
     (async () => {
       let fotograma = fotogramaRef.current;
       if (!fotograma) {
-        try {
-          fotograma = await extraerFotograma(archivo, captura.segundo);
-          fotogramaRef.current = fotograma;
-          setHayFotograma(true);
-        } catch {
-          if (!cancelado) sinImagen("error", "Este navegador no pudo leer el video para sacar el fotograma.");
+        // Primero el que sacó el servidor; si no llegó, el navegador lo saca del archivo
+        if (captura.fotograma) fotograma = await fotogramaDelServidor(captura.fotograma).catch(() => null);
+        if (!fotograma) fotograma = await extraerFotograma(archivo, captura.segundo).catch(() => null);
+        if (!fotograma) {
+          if (!cancelado) sinImagen("error", "No se pudo sacar el fotograma del video para la captura.");
           return;
         }
+        fotogramaRef.current = fotograma;
+        setHayFotograma(true);
       }
       if (cancelado) return;
       try {
-        let marcados = archivo.type.startsWith("image/") ? captura.animales ?? [] : [];
+        // Si el servidor mandó el fotograma, sus recuadros ya corresponden a esa misma imagen:
+        // no hace falta pedirle a la IA que vuelva a marcarla
+        let marcados = captura.fotograma || archivo.type.startsWith("image/") ? captura.animales ?? [] : [];
         if (!marcados.length && idCenso) {
           setEstado("marcando");
           const imagen = await comoBlob(fotograma);
@@ -254,7 +285,7 @@ export default function CapturaCenso({ archivo, captura, idCenso, idFinca, conte
           sinImagen("sinReses");
           return;
         }
-        const ordenados = numerar(marcados);
+        const ordenados = numerar(marcados).map((a) => ({ ...a, miniatura: recortarMiniatura(fotograma, a.caja) }));
         dibujar(lienzo.current, fotograma, ordenados);
         const filas = armar(ordenados);
         setAnimales(ordenados);

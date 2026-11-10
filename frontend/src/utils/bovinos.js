@@ -9,6 +9,7 @@ export function armarTablaBovinos({ capturados = [], reses = [], conteo = 0, pes
     categoria: a.categoria ?? null,
     origen: "imagen",
     segundo: segundoCaptura,
+    miniatura: a.miniatura ?? null,
   }));
 
   const faltan = Math.max(0, conteo - filas.length);
@@ -19,11 +20,14 @@ export function armarTablaBovinos({ capturados = [], reses = [], conteo = 0, pes
     .sort((a, b) => (a.segundo ?? 0) - (b.segundo ?? 0));
 
   for (const r of restantes) {
-    filas.push({ n: filas.length + 1, peso_kg: r.peso_kg, categoria: r.categoria ?? null, origen: "video", segundo: r.segundo ?? null });
+    filas.push({
+      n: filas.length + 1, peso_kg: r.peso_kg, categoria: r.categoria ?? null,
+      origen: "video", segundo: r.segundo ?? null, miniatura: r.miniatura ?? null,
+    });
   }
   const promedio = pesoPromedio != null ? Math.round(Number(pesoPromedio)) : null;
   while (filas.length < conteo) {
-    filas.push({ n: filas.length + 1, peso_kg: promedio, categoria: null, origen: "promedio", segundo: null });
+    filas.push({ n: filas.length + 1, peso_kg: promedio, categoria: null, origen: "promedio", segundo: null, miniatura: null });
   }
   return filas;
 }

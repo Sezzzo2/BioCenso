@@ -3,12 +3,16 @@ import hmac
 import json
 import os
 import re
+import shutil
+import tempfile
 import time
 import urllib.error
 import urllib.request
 
 from fastapi import FastAPI, File, Form, Header, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+
+from app import fotogramas
 
 # La clave nunca va en el código: se configura como variable de entorno del servicio
 API_KEY = os.getenv("GEMINI_API_KEY", "")
@@ -44,10 +48,11 @@ ESPERAS = [3, 8, 15]
 
 # Ajustes opcionales de la generación. Si un modelo no los acepta (400) o la petición se pasa
 # del límite de tokens por minuto (429), se repite sin ellos antes de cambiar de modelo.
-# - Captura: razonamiento medio; alcanza para medir cada res en una imagen y responde antes.
-# - Censo: fotogramas del video en alta resolución, para ver mejor el tamaño de cada animal.
+# - Razonamiento medio: alcanza para medir cada res y responde mucho antes que el completo.
+#   La alta resolución en video se probó y multiplicaba el tiempo (más de 170 s por intento
+#   con un video de 12 s); el detalle fino lo da la captura, que es una sola imagen.
 EXTRAS_CAPTURA = {"thinkingConfig": {"thinkingLevel": "medium"}}
-EXTRAS_CENSO = {"mediaResolution": "MEDIA_RESOLUTION_HIGH"}
+EXTRAS_CENSO = {"thinkingConfig": {"thinkingLevel": "medium"}}
 
 
 def con_extras(cuerpo, extras):
@@ -153,14 +158,14 @@ def texto_calibracion(calibracion):
 
 PROMPT_CENSO = """Actúa como el motor de visión por computadora de BioCenso especializado en detección y conteo de ganado bovino (vacas, toros, novillos, terneros).
 1. Examina con máxima atención todo el video o imagen de principio a fin y cuenta TODAS las vacas/reses que aparecen en la escena o recorrido (de pie, echadas, caminando, agrupadas, parcialmente visibles o en sombra). NO subestimes el conteo: "count" debe ser el número total real de reses identificadas.
-2. En "reses" agrega UN elemento por CADA res contada en todo el video (exactamente "count" elementos, sin repetir la misma res): su "categoria" (vaca, toro, novillo, novilla o ternero), su peso individual estimado en "peso_kg" según la guía de abajo, y el segundo del video en que mejor se ve en "segundo" (0 si es una imagen).
+2. En "reses" agrega UN elemento por CADA res contada en todo el video (exactamente "count" elementos, sin repetir la misma res): su "categoria" (vaca, toro, novillo, novilla o ternero), su peso individual estimado en "peso_kg" según la guía de abajo, el segundo exacto del video en que mejor se ve en "segundo" (0 si es una imagen) y su recuadro "box_2d" = [ymin, xmin, ymax, xmax] (0 a 1000) sobre el fotograma de ESE segundo, ajustado a su cuerpo.
 3. Elige el fotograma donde se vean más reses con claridad. En "captura.segundo" indica su segundo exacto dentro del video (usa 0 si es una imagen). Para CADA res visible en ese fotograma agrega un elemento a "captura.animales" con su recuadro "box_2d" = [ymin, xmin, ymax, xmax] en coordenadas normalizadas de 0 a 1000 sobre ese fotograma, y su peso individual estimado en kilogramos en "peso_kg". No marques otros animales (perros, caballos, cabras).
 
 Responde ÚNICAMENTE con JSON válido con esta forma (los valores entre <> son lo que debes estimar):
 {
   "count": <número de reses>,
   "reses": [
-    {"categoria": "<vaca|toro|novillo|novilla|ternero>", "largo_cm": <largo de cuerpo medido>, "peso_kg": <peso estimado de esa res>, "segundo": <segundo del video>}
+    {"categoria": "<vaca|toro|novillo|novilla|ternero>", "largo_cm": <largo de cuerpo medido>, "peso_kg": <peso estimado de esa res>, "segundo": <segundo del video>, "box_2d": [<ymin>, <xmin>, <ymax>, <xmax>]}
   ],
   "captura": {
     "segundo": <segundo del fotograma>,
@@ -277,8 +282,18 @@ def categoria_de(valor):
     return texto if texto in CATEGORIAS else None
 
 
-def leer_reses(lista, conteo):
-    """Peso y categoría de cada res contada en el video, como mucho tantas como el conteo."""
+def indice_de(valor, total):
+    """Número de fotograma válido (0..total-1) o None."""
+    try:
+        k = int(valor)
+    except (TypeError, ValueError):
+        return None
+    return k if 0 <= k < total else None
+
+
+def leer_reses(lista, conteo, segundos=None):
+    """Peso y categoría de cada res contada, como mucho tantas como el conteo. Con
+    `segundos` (modo fotogramas) cada res queda ligada al fotograma exacto donde se marcó."""
     reses = []
     for r in (lista if isinstance(lista, list) else [])[:max(0, conteo)]:
         if not isinstance(r, dict):
@@ -288,22 +303,61 @@ def leer_reses(lista, conteo):
             segundo = round(max(0.0, float(r.get("segundo") or 0)), 1)
         except (TypeError, ValueError):
             continue
+        k = indice_de(r.get("fotograma"), len(segundos)) if segundos else None
+        if k is not None:
+            segundo = segundos[k]
         if 30 <= peso <= 1500:
-            reses.append({"categoria": categoria_de(r.get("categoria")), "peso_kg": peso, "segundo": segundo})
+            reses.append({"categoria": categoria_de(r.get("categoria")), "peso_kg": peso, "segundo": segundo,
+                          "caja": caja_de(r.get("box_2d")), "cuadro": k})
     return reses
 
 
-def leer_captura(datos):
-    """Segundo del fotograma elegido y, si llegaron, sus recuadros. None si el modelo no lo envió."""
+def caja_de(valor):
+    """Recuadro [ymin, xmin, ymax, xmax] normalizado a 0-1000, o None si no es válido."""
+    if not isinstance(valor, list) or len(valor) != 4:
+        return None
+    try:
+        ymin, xmin, ymax, xmax = (min(1000, max(0, int(round(float(v))))) for v in valor)
+    except (TypeError, ValueError):
+        return None
+    return [ymin, xmin, ymax, xmax] if ymax > ymin and xmax > xmin else None
+
+
+def leer_captura(datos, segundos=None):
+    """Segundo del fotograma elegido y, si llegaron, sus recuadros. None si el modelo no lo envió.
+    Con `segundos` (modo fotogramas) el fotograma es exactamente uno de los enviados."""
     captura = datos.get("captura")
     if not isinstance(captura, dict):
         return None
+    k = indice_de(captura.get("fotograma"), len(segundos)) if segundos else None
     try:
-        segundo = max(0.0, float(captura.get("segundo") or 0))
+        segundo = segundos[k] if k is not None else max(0.0, float(captura.get("segundo") or 0))
     except (TypeError, ValueError):
         segundo = 0.0
-    return {"segundo": round(segundo, 2), "animales": leer_animales(captura.get("animales"))}
+    return {"segundo": round(segundo, 2), "animales": leer_animales(captura.get("animales")), "cuadro": k}
 
+
+PROMPT_FOTOGRAMAS = """Actúa como el motor de visión por computadora de BioCenso especializado en detección y conteo de ganado bovino (vacas, toros, novillos, terneros).
+Recibes {n} fotograma(s) de un vuelo de dron sobre un potrero, en orden, cada uno precedido por su etiqueta "Fotograma k (segundo s)". El número k también está escrito en la esquina superior izquierda de cada imagen: úsalo para saber a qué fotograma corresponde lo que marcas, y no marques ese rótulo. El dron avanza: una misma res puede aparecer en varios fotogramas seguidos.
+1. Cuenta TODAS las reses distintas del vuelo (de pie, echadas, caminando, agrupadas, parcialmente visibles o en sombra), cada una UNA sola vez aunque aparezca en varios fotogramas: reconócela por su posición respecto al terreno, su color y el avance del dron. "count" es el número total de reses distintas. No marques otros animales (perros, caballos, cabras).
+2. En "reses" agrega UN elemento por CADA res contada (exactamente "count" elementos): su "categoria", su "largo_cm" y su "peso_kg" según la guía de abajo, el número del fotograma donde mejor se ve en "fotograma" (el k de su etiqueta) y su recuadro "box_2d" = [ymin, xmin, ymax, xmax] (0 a 1000) sobre ESE fotograma, ajustado a su cuerpo.
+3. En "captura" indica el fotograma donde se ven más reses con claridad ("fotograma": su k) y, en "animales", el recuadro, la categoría, el largo y el peso de CADA res visible en él.
+
+Responde ÚNICAMENTE con JSON válido con esta forma (los valores entre <> son lo que debes estimar):
+{{
+  "count": <número de reses distintas>,
+  "reses": [
+    {{"categoria": "<vaca|toro|novillo|novilla|ternero>", "largo_cm": <largo de cuerpo medido>, "peso_kg": <peso estimado>, "fotograma": <k>, "box_2d": [<ymin>, <xmin>, <ymax>, <xmax>]}}
+  ],
+  "captura": {{
+    "fotograma": <k>,
+    "animales": [
+      {{"box_2d": [<ymin>, <xmin>, <ymax>, <xmax>], "categoria": "<vaca|toro|novillo|novilla|ternero>", "largo_cm": <largo>, "peso_kg": <peso estimado>}}
+    ]
+  }}
+}}
+
+""" + REFERENCIA_PESOS.replace("{", "{{").replace("}", "}}")
 
 PROMPT_CAJAS = """Esta es una imagen aérea de un potrero tomada por un dron. Detecta CADA res (bovino: vaca, toro, novillo, ternero) visible, incluidas las que están echadas, en sombra o parcialmente fuera del borde.
 No marques otros animales (perros, caballos, cabras, ovejas, aves) ni objetos.
@@ -329,7 +383,78 @@ app.add_middleware(
 
 @app.get("/health")
 def health():
-    return {"estado": "ok", "servicio": "ai-service", "clave_configurada": bool(API_KEY)}
+    return {"estado": "ok", "servicio": "ai-service", "clave_configurada": bool(API_KEY),
+            "ffmpeg": bool(fotogramas.FFMPEG)}
+
+
+def agregar_imagenes(cuadros, captura, reses):
+    """Agrega la imagen del fotograma de la captura y una miniatura de cada res, recortadas de
+    los mismos fotogramas que vio la IA. Si algo falla, el censo sigue sin imágenes."""
+    try:
+        k = (captura or {}).get("cuadro")
+        if captura is not None and isinstance(k, int) and 0 <= k < len(cuadros):
+            captura["fotograma"] = fotogramas.a_data_url(cuadros[k])
+        fotogramas.miniaturas_de_reses(reses, cuadros)
+    except Exception as error:  # las imágenes son un extra: nunca tumban el censo
+        print("No se pudieron preparar las imágenes del censo:", type(error).__name__, error, flush=True)
+    finally:
+        if captura is not None:
+            captura.pop("cuadro", None)
+        for r in reses:
+            r.pop("caja", None)
+            r.pop("cuadro", None)
+
+
+def preparar_cuadros(archivo, mime_type):
+    """Fotogramas que se envían a la IA: la imagen tal cual o fotogramas repartidos por el vuelo.
+    Devuelve (cuadros PIL, segundos) o ([], []) si no se pudieron sacar (se usa el video entero)."""
+    archivo.seek(0)
+    if mime_type.startswith("image/"):
+        img = fotogramas.imagen_de_archivo(archivo.read())
+        return ([img], [0.0]) if img is not None else ([], [])
+    ruta = None
+    try:
+        # ffmpeg necesita una ruta: el video se copia a un temporal que se borra enseguida
+        with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as tmp:
+            shutil.copyfileobj(archivo, tmp, 1024 * 1024)
+            ruta = tmp.name
+        muestras = fotogramas.muestrear_video(ruta)
+        return [img for _, img in muestras], [seg for seg, _ in muestras]
+    except Exception as error:
+        print("No se pudieron sacar fotogramas del video:", type(error).__name__, error, flush=True)
+        return [], []
+    finally:
+        if ruta:
+            try:
+                os.remove(ruta)
+            except OSError:
+                pass
+
+
+def partes_de_cuadros(cuadros, segundos):
+    """Cada fotograma va precedido de su etiqueta, para que la IA diga en cuál marcó cada res.
+    Si el total pasa del límite de una petición, se reducen tamaño y calidad."""
+    for lado, calidad in ((1280, 80), (960, 72), (720, 65)):
+        partes, total = [], 0
+        for k, (img, seg) in enumerate(zip(cuadros, segundos)):
+            copia = img.copy()
+            copia.thumbnail((lado, lado))
+            jpg = fotogramas.a_jpeg(fotogramas.con_numero(copia, k), calidad)
+            total += len(jpg)
+            partes.append({"text": f"Fotograma {k} (segundo {seg:g}), la imagen que sigue:"})
+            partes.append({"inlineData": {"mimeType": "image/jpeg", "data": base64.b64encode(jpg).decode("utf-8")}})
+        if total <= LIMITE_EN_LINEA:
+            return partes
+    return partes
+
+
+def parte_video_entero(archivo, tamano, mime_type, nombre):
+    """Respaldo cuando no se pudieron sacar fotogramas: el video tal cual (en línea o subido)."""
+    archivo.seek(0)
+    if tamano <= LIMITE_EN_LINEA:
+        return {"inlineData": {"mimeType": mime_type, "data": base64.b64encode(archivo.read()).decode("utf-8")}}, None
+    subido = subir_archivo(archivo, tamano, mime_type, nombre)
+    return {"fileData": {"mimeType": subido.get("mimeType", mime_type), "fileUri": subido["uri"]}}, subido
 
 
 # Función síncrona a propósito: FastAPI la ejecuta en un hilo aparte, así las esperas
@@ -345,24 +470,27 @@ def predict(imagen: UploadFile = File(...), calibracion: str = Form(default=""),
     archivo = imagen.file
     archivo.seek(0, os.SEEK_END)
     tamano = archivo.tell()
-    archivo.seek(0)
 
+    # Lo normal: la IA recibe fotogramas numerados y marca cada res en uno de ellos, así su
+    # recuadro corresponde exactamente a una imagen que el servidor tiene (para la captura y
+    # las miniaturas). En un video, los recuadros no coinciden bien con el fotograma real.
+    cuadros, segundos = preparar_cuadros(archivo, mime_type)
     subido = None
-    if tamano <= LIMITE_EN_LINEA:
-        parte_archivo = {"inlineData": {"mimeType": mime_type, "data": base64.b64encode(archivo.read()).decode("utf-8")}}
+    if cuadros:
+        partes = partes_de_cuadros(cuadros, segundos)
+        texto = PROMPT_FOTOGRAMAS.format(n=len(cuadros))
     else:
-        subido = subir_archivo(archivo, tamano, mime_type, imagen.filename)
-        parte_archivo = {"fileData": {"mimeType": subido.get("mimeType", mime_type), "fileUri": subido["uri"]}}
-
+        parte, subido = parte_video_entero(archivo, tamano, mime_type, imagen.filename)
+        partes, texto = [parte], PROMPT_CENSO
     payload = {
-        "contents": [{"parts": [parte_archivo, {"text": PROMPT_CENSO + texto_calibracion(calibracion)}]}],
+        "contents": [{"parts": partes + [{"text": texto + texto_calibracion(calibracion)}]}],
         "generationConfig": {"responseMimeType": "application/json", "temperature": 0.1},
     }
     try:
-        # Un video largo con la lista de cada res tarda más que una imagen: más tiempo por intento.
+        # Se le da tiempo de sobra a cada intento: cortarlo gasta la petición y hay que repetirla.
         # El backend espera 600 s en total.
         raw_resp, modelo_usado = llamar_gemini(
-            json.dumps(payload).encode("utf-8"), presupuesto=540, extras=EXTRAS_CENSO, timeout=170)
+            json.dumps(payload).encode("utf-8"), presupuesto=560, extras=EXTRAS_CENSO, timeout=270)
     finally:
         if subido:
             borrar_archivo(subido["name"])
@@ -374,8 +502,8 @@ def predict(imagen: UploadFile = File(...), calibracion: str = Form(default=""),
         raise HTTPException(status_code=502, detail="La IA devolvió una respuesta con un formato inesperado")
 
     conteo = max(0, int(datos.get("count", datos.get("conteo_maximo", 0)) or 0))
-    reses = leer_reses(datos.get("reses"), conteo)
-    captura = leer_captura(datos)
+    reses = leer_reses(datos.get("reses"), conteo, segundos or None)
+    captura = leer_captura(datos, segundos or None)
 
     # El promedio y el total salen de los pesos de cada animal, sin acotarlos a un rango
     # elegido de antemano. Si faltan pesos individuales se usan los de la captura y, como
@@ -394,6 +522,7 @@ def predict(imagen: UploadFile = File(...), calibracion: str = Form(default=""),
     peso_min = round(min(pesos), 2) if pesos else peso_prom
     peso_max = round(max(pesos), 2) if pesos else peso_prom
 
+    agregar_imagenes(cuadros, captura, reses)
     tiempo_procesamiento = round(time.perf_counter() - inicio, 2)
 
     return {

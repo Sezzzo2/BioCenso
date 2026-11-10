@@ -170,7 +170,7 @@ export default function CensoDetalle() {
   const registrados = resultado.registrados;
   const difManual = manual != null && ia != null ? ia - manual : null;
   const difRegistro = ia != null && registrados != null ? ia - registrados : null;
-  const peso = censo.peso_estimado;
+  const peso = censo.peso_estimado != null ? Math.round(Number(censo.peso_estimado)) : null;
   const pesoTotal = censo.peso_total_estimado ?? (ia != null && peso != null ? Math.round(ia * peso) : null);
   const fecha = fechaDeCenso(censo);
 

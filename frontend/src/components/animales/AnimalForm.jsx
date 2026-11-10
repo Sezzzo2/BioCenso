@@ -58,10 +58,16 @@ export default function AnimalForm({ inicial = {}, imagenActual = null, textoBot
     e.preventDefault();
     setError("");
     const errores = {};
-    if (!form.numero_animal.trim()) errores.numero_animal = "El número del animal es obligatorio.";
+    // Mismas reglas que el servidor: hasta 30 caracteres, solo letras, números y guiones
+    const numero = form.numero_animal.trim();
+    if (!numero) errores.numero_animal = "El número del animal es obligatorio.";
+    else if (numero.length > 30) errores.numero_animal = "El número no puede tener más de 30 caracteres.";
+    else if (!/^[A-Za-z0-9-]+$/.test(numero)) {
+      errores.numero_animal = "Usa solo letras sin tilde, números y guiones (sin espacios). Ej.: LV-001.";
+    }
     if (!form.sexo) errores.sexo = "Selecciona el sexo.";
-    if (form.peso !== "" && (!Number.isFinite(Number(form.peso)) || Number(form.peso) <= 0)) {
-      errores.peso = "El peso debe ser mayor que 0.";
+    if (form.peso !== "" && (!Number.isFinite(Number(form.peso)) || Number(form.peso) <= 0 || Number(form.peso) > 2000)) {
+      errores.peso = "El peso debe estar entre 0,1 y 2000 kg.";
     }
     setFieldErrors(errores);
     const primero = Object.keys(errores)[0];
@@ -90,7 +96,7 @@ export default function AnimalForm({ inicial = {}, imagenActual = null, textoBot
         <div className="rejilla">
           <FormField id="numero_animal" label="Número del animal" required error={fieldErrors.numero_animal}>
             {({ describedBy }) => (
-              <input id="numero_animal" name="numero_animal" className="ctl" placeholder="Ej.: LV-001" maxLength={100}
+              <input id="numero_animal" name="numero_animal" className="ctl" placeholder="Ej.: LV-001" maxLength={30}
                 value={form.numero_animal} onChange={cambiar} aria-required="true"
                 aria-invalid={Boolean(fieldErrors.numero_animal)} aria-describedby={describedBy} />
             )}
@@ -110,7 +116,7 @@ export default function AnimalForm({ inicial = {}, imagenActual = null, textoBot
           </FormField>
           <FormField id="peso" label="Peso en kg (opcional)" error={fieldErrors.peso}>
             {({ describedBy }) => (
-              <input id="peso" name="peso" type="number" min="0" step="0.1" inputMode="decimal" className="ctl"
+              <input id="peso" name="peso" type="number" min="0.1" max="2000" step="0.1" inputMode="decimal" className="ctl"
                 placeholder="Ej.: 380" value={form.peso} onChange={cambiar}
                 aria-invalid={Boolean(fieldErrors.peso)} aria-describedby={describedBy} />
             )}

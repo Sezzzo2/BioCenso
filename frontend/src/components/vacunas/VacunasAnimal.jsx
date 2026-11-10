@@ -91,6 +91,7 @@ export default function VacunasAnimal({ idAnimal }) {
     setOk("");
     const nombre = nombreNueva.trim();
     if (nombre.length < 2) return setError("Escribe el nombre de la vacuna.");
+    if (nombre.length > 80) return setError("El nombre de la vacuna no puede tener más de 80 caracteres.");
 
     setCreando(true);
     try {
@@ -166,7 +167,7 @@ export default function VacunasAnimal({ idAnimal }) {
               <form className="form-linea linea-nv" onSubmit={agregarAlCatalogo} noValidate>
                 <div className="campo">
                   <label htmlFor="nv-nombre">Nombre de la nueva vacuna</label>
-                  <input id="nv-nombre" className="ctl" maxLength={150} placeholder="Ej.: Leptospirosis" autoFocus
+                  <input id="nv-nombre" className="ctl" maxLength={80} placeholder="Ej.: Leptospirosis" autoFocus
                     value={nombreNueva} onChange={(e) => setNombreNueva(e.target.value)} />
                 </div>
                 <button className="btn btn-claro" type="submit" disabled={creando}>{creando ? "Agregando..." : "Agregar al catálogo"}</button>

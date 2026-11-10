@@ -20,7 +20,7 @@ function mensajeDeError(err) {
   if (err?.code === "ECONNABORTED") {
     return "El análisis tardó demasiado. Prueba con un video más corto o vuelve a intentarlo en un momento.";
   }
-  if (!err?.response) return err?.message || "No se pudo completar el análisis del video.";
+  if (!err?.response) return extraerError(err);
   switch (err.response.status) {
     case 404: return "La finca no existe o no te pertenece.";
     case 413: return `El archivo supera los ${MAX_MB} MB que acepta el servidor.`;

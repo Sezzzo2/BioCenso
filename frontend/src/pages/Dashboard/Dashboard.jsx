@@ -37,7 +37,9 @@ export default function Dashboard() {
   // Del más antiguo al más reciente para el gráfico
   const puntos = useMemo(
     () => ordenarCensos(datos.censos.filter(esCompletado)).reverse()
-      .map((c) => ({ id: c.id_censo, fecha: fechaDeCenso(c), ia: c.cantidad_animales, manual: c.conteo_manual })),
+      .map((c) => ({ id: c.id_censo, fecha: fechaDeCenso(c), ia: c.cantidad_animales ?? null, manual: c.conteo_manual ?? null }))
+      // Un censo sin ningún conteo no tiene qué dibujar
+      .filter((p) => p.ia != null || p.manual != null),
     [datos.censos]
   );
 
@@ -56,6 +58,7 @@ export default function Dashboard() {
   const ia = ultimo?.cantidad_animales ?? null;
   const manual = ultimo?.conteo_manual ?? null;
   const pesoTotal = ia != null && ultimo?.peso_estimado != null ? Math.round(ia * ultimo.peso_estimado) : null;
+  const pesoProm = ultimo?.peso_estimado != null ? Math.round(ultimo.peso_estimado) : null;
 
   return (
     <>
@@ -84,7 +87,7 @@ export default function Dashboard() {
             <div className="cifras">
               <StatCard label="Conteo de la IA" value={ia ?? "—"} unit="animales" description={`Vuelo del ${formatFecha(fechaDeCenso(ultimo))}`} />
               <StatCard label="Peso total estimado" value={pesoTotal != null ? pesoTotal.toLocaleString("es-CO") : "—"} unit="kg"
-                description={ultimo.peso_estimado != null ? `${ultimo.peso_estimado} kg por res en promedio` : null} />
+                description={pesoProm != null ? `${pesoProm.toLocaleString("es-CO")} kg por res en promedio` : null} />
               <StatCard label="Conteo manual" value={manual ?? "—"} unit={manual != null ? "animales" : undefined}
                 description={manual == null ? "Sin registrar" : null} />
               <StatCard label="Diferencia (IA − manual)" value={signo(ia != null && manual != null ? ia - manual : null)} />
@@ -98,7 +101,9 @@ export default function Dashboard() {
               <span><i style={{ background: COLOR_IA }} />Conteo de la IA</span>
               <span><i style={{ background: COLOR_MANUAL }} />Conteo manual</span>
             </div>
-            <GraficoEvolucion puntos={puntos} />
+            {puntos.length ? <GraficoEvolucion puntos={puntos} /> : (
+              <p className="sub" style={{ marginTop: 14 }}>Todavía no hay conteos para dibujar la gráfica.</p>
+            )}
             <p className="pista" style={{ marginTop: 10 }}>
               Los mismos datos están en la tabla de censos de la <Link className="enlace" to={`/fincas/${id}`}>ficha de la finca</Link>.
             </p>

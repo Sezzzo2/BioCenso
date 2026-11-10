@@ -2,15 +2,15 @@ const { body, param } = require("express-validator");
 
 const crearCensoValidator = [
   body("id_finca")
-    .notEmpty().withMessage("id_finca es obligatorio")
-    .isInt({ min: 1 }).withMessage("id_finca debe ser un entero positivo"),
+    .notEmpty().withMessage("Elige una finca")
+    .isInt({ min: 1 }).withMessage("La finca elegida no es válida"),
   body("nota")
     .optional({ values: "falsy" })
     .trim()
     .isLength({ max: 500 }),
   body("fecha_vuelo")
     .optional({ values: "falsy" })
-    .isISO8601({ strict: true }).withMessage("fecha_vuelo debe tener formato AAAA-MM-DD")
+    .isISO8601({ strict: true }).withMessage("La fecha del vuelo no es válida")
     .custom((valor) => new Date(valor) <= new Date()).withMessage("La fecha del vuelo no puede ser futura"),
   // Altura del dron sobre el terreno: da la escala para estimar el tamaño de cada animal
   body("altura_vuelo")
@@ -28,8 +28,8 @@ const idCensoParamValidator = [
 
 const actualizarConteoManualValidator = [
   body("conteo_manual")
-    .notEmpty().withMessage("conteo_manual es obligatorio")
-    .isInt({ min: 0 }).withMessage("conteo_manual debe ser un entero mayor o igual a 0"),
+    .notEmpty().withMessage("Ingresa el número de animales contados")
+    .isInt({ min: 0 }).withMessage("El conteo manual debe ser un número entero, 0 o mayor"),
 ];
 
 module.exports = { crearCensoValidator, idFincaParamValidator, idCensoParamValidator, actualizarConteoManualValidator };

@@ -8,20 +8,20 @@ const ESTADOS_GENERALES_VALIDOS = ["Sano", "Enfermo", "En observación", "Muerto
 const camposComunesAnimal = [
   body("numero_animal")
     .trim()
-    .notEmpty().withMessage("numero_animal es obligatorio")
-    .isLength({ max: 30 }).withMessage("numero_animal no puede superar 30 caracteres")
-    .matches(/^[A-Za-z0-9\-]+$/).withMessage("numero_animal solo admite letras, números y guiones"),
+    .notEmpty().withMessage("El número del animal es obligatorio")
+    .isLength({ max: 30 }).withMessage("El número del animal no puede tener más de 30 caracteres")
+    .matches(/^[A-Za-z0-9\-]+$/).withMessage("El número del animal solo admite letras sin tilde, números y guiones (sin espacios)"),
   body("sexo")
     .notEmpty().withMessage("El sexo es obligatorio")
     .isIn(SEXOS_VALIDOS).withMessage(`El sexo debe ser uno de: ${SEXOS_VALIDOS.join(", ")}`),
   body("fecha_nacimiento")
     .optional({ values: "falsy" })
-    .isISO8601().withMessage("fecha_nacimiento debe tener formato YYYY-MM-DD")
+    .isISO8601().withMessage("La fecha de nacimiento no es válida")
     .custom((value) => new Date(value) <= new Date())
-    .withMessage("fecha_nacimiento no puede ser una fecha futura"),
+    .withMessage("La fecha de nacimiento no puede ser futura"),
   body("peso")
     .optional({ values: "falsy" })
-    .isFloat({ min: 0.1, max: 2000 }).withMessage("peso debe estar entre 0.1 y 2000 kg"),
+    .isFloat({ min: 0.1, max: 2000 }).withMessage("El peso debe estar entre 0,1 y 2000 kg"),
   body("estado_reproductivo")
     .optional({ values: "falsy" })
     .trim()
@@ -38,8 +38,8 @@ const camposComunesAnimal = [
 
 const crearAnimalValidator = [
   body("id_finca")
-    .notEmpty().withMessage("id_finca es obligatorio")
-    .isInt({ min: 1 }).withMessage("id_finca debe ser un entero positivo"),
+    .notEmpty().withMessage("Elige una finca")
+    .isInt({ min: 1 }).withMessage("La finca elegida no es válida"),
   ...camposComunesAnimal,
 ];
 

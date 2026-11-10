@@ -23,8 +23,10 @@ export default function GraficoEvolucion({ puntos }) {
   }, []);
 
   const W = ancho, H = 280, m = { t: 20, r: 74, b: 34, l: 40 };
-  const valores = puntos.flatMap((p) => [p.ia, p.manual]).filter((v) => v != null);
-  const maxV = Math.max(...valores), minV = Math.min(...valores);
+  const valores = puntos.flatMap((p) => [p.ia, p.manual]).filter((v) => v != null).map(Number);
+  // Sin valores, Math.max() da -Infinity y la gráfica quedaría con coordenadas NaN
+  const maxV = valores.length ? Math.max(...valores) : 0;
+  const minV = valores.length ? Math.min(...valores) : 0;
   const paso = Math.max(1, Math.ceil((maxV - minV + 4) / 4));
   const y0 = Math.max(0, Math.floor((minV - paso) / paso) * paso);
   const y1 = Math.ceil((maxV + 1) / paso) * paso;
